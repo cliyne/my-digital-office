@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Freelance Project Quote & Profit Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; color: #0f172a; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #ffffff; }
+      .print-box { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+  <div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Freelance Project Quote & Profit Calculator</h1>
+        <p class="text-sm text-slate-500">Calculate profitable client quotes in 60 seconds and prevent unpaid scope creep.</p>
+      </div>
+      <div class="flex gap-2 no-print">
+        <button onclick="saveDefaults()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 transition">Save My Rates</button>
+        <button onclick="window.print()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white transition">Print / Save PDF</button>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-12 gap-6">
+      <!-- Left Inputs -->
+      <div class="md:col-span-7 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 no-print">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">1. Project & Rate Inputs</h2>
+
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Project Name</label>
+            <input id="projName" type="text" placeholder="e.g., Landing Page Redesign" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Client Name</label>
+            <input id="clientName" type="text" placeholder="e.g., Acme Studio" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Currency</label>
+            <select id="currency" onchange="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="$">$ (USD)</option>
+              <option value="€">€ (EUR)</option>
+              <option value="£">£ (GBP)</option>
+              <option value="₩">₩ (KRW)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Hourly Rate</label>
+            <input id="hourlyRate" type="number" value="50" min="0" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Est. Hours</label>
+            <input id="estHours" type="number" value="10" min="0" step="0.5" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Buffer (%)</label>
+            <input id="bufferPct" type="number" value="15" min="0" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Direct Costs</label>
+            <input id="directCost" type="number" value="0" min="0" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Tax/Fee (%)</label>
+            <input id="taxPct" type="number" value="15" min="0" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Pricing Tier</label>
+            <select id="tierMult" onchange="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="1">Standard Timeline (1.0x)</option>
+              <option value="1.25">Rush Delivery (+25%)</option>
+              <option value="0.9">Retainer / Repeat (-10%)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Included Revisions</label>
+            <input id="revisions" type="number" value="2" min="0" oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Deliverables & Scope Notes</label>
+          <textarea id="scopeNotes" rows="2" placeholder="e.g., 1 responsive web page, mobile optimization, 2 revision rounds." oninput="calculate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></textarea>
+        </div>
+
+        <!-- Scope Guardrail Checklist -->
+        <div class="pt-2 border-t border-slate-100">
+          <p class="text-xs font-bold text-slate-700 mb-2">Scope & Payment Terms (Included in Quote)</p>
+          <div class="space-y-1.5 text-xs text-slate-600">
+            <label class="flex items-center gap-2"><input type="checkbox" class="term-cb" checked onchange="calculate()" value="50% upfront deposit required to reserve start date; 50% upon completion."> 50% upfront deposit / 50% on delivery</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="term-cb" checked onchange="calculate()" value="Additional revisions beyond included rounds billed at standard hourly rate."> Extra revisions billed hourly</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="term-cb" checked onchange="calculate()" value="Quote valid for 14 days from issue date."> Quote valid for 14 days</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Quote Output -->
+      <div class="md:col-span-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between print-box">
+        <div>
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <span class="text-xs font-bold uppercase tracking-wider text-sky-600">Project Estimate</span>
+            <span id="outDate" class="text-xs text-slate-400"></span>
+          </div>
+
+          <div class="mb-4">
+            <div id="outProj" class="text-lg font-bold text-slate-900">Custom Project Quote</div>
+            <div id="outClient" class="text-xs text-slate-500">Prepared for Client</div>
+          </div>
+
+          <div class="bg-slate-900 text-white rounded-xl p-4 mb-4">
+            <div class="text-xs text-slate-400">Recommended Client Quote</div>
+            <div id="outQuote" class="text-3xl font-extrabold text-emerald-400 mt-0.5">$575</div>
+            <div class="text-[11px] text-slate-400 mt-1">Minimum Walk-Away Price: <span id="outMin" class="text-slate-200 font-semibold">$500</span></div>
+          </div>
+
+          <div class="space-y-2 text-xs border-b border-slate-100 pb-4 mb-4">
+            <div class="flex justify-between"><span class="text-slate-500">Base Labor:</span><span id="outBase" class="font-semibold">$500</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Scope Buffer & Costs:</span><span id="outBuffer" class="font-semibold">$75</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Est. Tax & Platform Reserve:</span><span id="outTax" class="font-semibold text-amber-600">-$86</span></div>
+            <div class="flex justify-between pt-2 border-t border-slate-100"><span class="font-bold text-slate-700">Est. Net Take-Home Profit:</span><span id="outNet" class="font-bold text-emerald-600">$489</span></div>
+          </div>
+
+          <div class="text-xs text-slate-600 space-y-1.5">
+            <div class="font-bold text-slate-800">Scope & Terms:</div>
+            <p id="outScope" class="text-slate-600">Includes 2 revision rounds.</p>
+            <ul id="outTerms" class="list-disc pl-4 text-[11px] text-slate-500 space-y-1 pt-1"></ul>
+          </div>
+        </div>
+
+        <button onclick="copyQuote()" id="copyBtn" class="mt-6 w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition no-print">
+          Copy Client-Ready Quote
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const FIELDS = ['currency', 'hourlyRate', 'bufferPct', 'taxPct', 'revisions'];
+
+    function loadDefaults() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('fq_calc_defaults') || '{}');
+        FIELDS.forEach(id => { if (saved[id] !== undefined) document.getElementById(id).value = saved[id]; });
+      } catch (e) {}
+      document.getElementById('outDate').textContent = new Date().toLocaleDateString();
+      calculate();
+    }
+
+    function saveDefaults() {
+      const data = {};
+      FIELDS.forEach(id => { data[id] = document.getElementById(id).value; });
+      localStorage.setItem('fq_calc_defaults', JSON.stringify(data));
+      alert('Your default rates have been saved in this browser.');
+    }
+
+    function fmt(cur, num) {
+      return cur + Math.round(num).toLocaleString();
+    }
+
+    function calculate() {
+      const cur = document.getElementById('currency').value;
+      const rate = Math.max(0, parseFloat(document.getElementById('hourlyRate').value) || 0);
+      const hours = Math.max(0, parseFloat(document.getElementById('estHours').value) || 0);
+      const bufPct = Math.max(0, parseFloat(document.getElementById('bufferPct').value) || 0);
+      const direct = Math.max(0, parseFloat(document.getElementById('directCost').value) || 0);
+      const taxPct = Math.max(0, parseFloat(document.getElementById('taxPct').value) || 0);
+      const mult = parseFloat(document.getElementById('tierMult').value) || 1;
+      const revs = Math.max(0, parseInt(document.getElementById('revisions').value) || 0);
+
+      const base = rate * hours;
+      const bufferAmt = base * (bufPct / 100);
+      const minPrice = base + direct;
+      const quote = (base + bufferAmt + direct) * mult;
+      const taxReserve = quote * (taxPct / 100);
+      const netProfit = quote - direct - taxReserve;
+
+      document.getElementById('outProj').textContent = document.getElementById('projName').value.trim() || 'Custom Project Quote';
+      const client = document.getElementById('clientName').value.trim();
+      document.getElementById('outClient').textContent = client ? `Prepared for ${client}` : 'Prepared for Client';
+
+      document.getElementById('outQuote').textContent = fmt(cur, quote);
+      document.getElementById('outMin').textContent = fmt(cur, minPrice);
+      document.getElementById('outBase').textContent = fmt(cur, base);
+      document.getElementById('outBuffer').textContent = fmt(cur, bufferAmt + direct);
+      document.getElementById('outTax').textContent = '-' + fmt(cur, taxReserve);
+      document.getElementById('outNet').textContent = fmt(cur, netProfit);
+
+      const notes = document.getElementById('scopeNotes').value.trim();
+      document.getElementById('outScope').textContent = (notes ? notes + ' ' : '') + `(Includes ${revs} revision round${revs === 1 ? '' : 's'}).`;
+
+      const termsList = document.getElementById('outTerms');
+      termsList.innerHTML = '';
+      document.querySelectorAll('.term-cb:checked').forEach(cb => {
+        const li = document.createElement('li');
+        li.textContent = cb.value;
+        termsList.appendChild(li);
+      });
+    }
+
+    function copyQuote() {
+      const proj = document.getElementById('outProj').textContent;
+      const client = document.getElementById('outClient').textContent;
+      const total = document.getElementById('outQuote').textContent;
+      const scope = document.getElementById('outScope').textContent;
+      const terms = Array.from(document.querySelectorAll('.term-cb:checked')).map(c => `- ${c.value}`).join('\n');
+
+      const text = `PROJECT QUOTE: ${proj}\n${client}\nEstimated Total: ${total}\n\nScope: ${scope}\n\nTerms:\n${terms}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copied to Clipboard!';
+        setTimeout(() => { btn.textContent = 'Copy Client-Ready Quote'; }, 2000);
+      });
+    }
+
+    loadDefaults();
+  </script>
+</body>
+</html>
