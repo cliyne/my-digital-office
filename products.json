@@ -1,0 +1,14 @@
+{
+  "products": [
+    {
+      "id": "prod-01",
+      "name": "Freelance Project Quote & Profit Calculator",
+      "url": "https://yourname.gumroad.com/l/your-product-slug",
+      "price_usd": 9,
+      "format": "HTML Tool + Quick-Start Guide",
+      "hook": "Calculate profitable client quotes in 60 seconds and prevent unpaid scope creep.",
+      "target_buyer": "Freelancers, solo web builders, and creators",
+      "status": "Live on Gumroad"
+    }
+  ]
+}
