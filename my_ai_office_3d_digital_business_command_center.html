@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>My AI Office — 3D Digital Business Command Center</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js & OrbitControls via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Google Font: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e2e',
+              925: '#0b1120',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f172a;
+      color: #f8fafc;
+      user-select: none;
+    }
+    #office-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    /* Floating 3D Speech Bubbles & Labels */
+    .floating-label {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 10;
+    }
+    /* Custom thin scrollbars for drawers */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); }
+    ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.5); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
+    .selectable-text { user-select: text; -webkit-user-select: text; }
+  </style>
+</head>
+<body class="font-sans antialiased">
+
+  <!-- 3D Office Canvas Container -->
+  <div id="canvas-wrapper" class="relative w-full h-full">
+    <canvas id="office-canvas"></canvas>
+
+    <!-- Floating Labels Layer (Projected from 3D coordinates) -->
+    <div id="floating-labels-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+    <!-- TOP HUD HEADER -->
+    <header class="absolute top-0 left-0 right-0 z-20 p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <!-- Office Identity & Revenue Pill -->
+      <div class="pointer-events-auto flex items-center gap-2.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/70 rounded-2xl px-3.5 py-2 shadow-xl">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-slate-950 font-bold text-sm shadow">
+          AI
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 id="hud-office-name" class="text-sm sm:text-base font-bold text-white tracking-tight">O2San Digital Studio</h1>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              $0 Overhead
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Chief: <span id="hud-chief-name" class="text-amber-300 font-medium">Nova</span> •
+            <span id="hud-agent-count">1</span>/9 Desks •
+            <span id="hud-revenue" class="text-emerald-400 font-semibold">$0 Earned</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Right Action Buttons -->
+      <div class="pointer-events-auto flex items-center gap-2 flex-wrap">
+        <!-- Guard Safety Status Badge -->
+        <button onclick="openGuardModal()" title="Guard Hook Active" class="flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md border border-emerald-500/40 text-emerald-300 rounded-xl px-3 py-2 text-xs font-medium shadow-lg transition">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="hidden md:inline">Guard Safety:</span>
+          <span>Protected</span>
+        </button>
+
+        <!-- Brain Vault Button -->
+        <button onclick="openBrainModal()" class="flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md border border-cyan-500/40 text-cyan-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold shadow-lg transition">
+          <span>🧠</span>
+          <span>Brain Vault</span>
+        </button>
+
+        <!-- Spawn Agent Button -->
+        <button onclick="openSpawnModal()" id="btn-spawn-agent" class="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold shadow-lg shadow-orange-500/20 transition active:scale-95">
+          <span>+ Spawn Agent</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- QUICK TIPS / CAMERA CONTROLS PILL (Top-Left Sub-bar on Desktop) -->
+    <div class="hidden lg:flex absolute top-20 left-4 z-10 pointer-events-none items-center gap-2 bg-slate-900/70 backdrop-blur-sm border border-slate-800 rounded-xl px-3 py-1.5 text-[11px] text-slate-400">
+      <span>🖱️ Drag to orbit • Scroll/Pinch to zoom • Click any Agent or the glowing Brain</span>
+    </div>
+
+    <!-- TOAST NOTIFICATION BANNER -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-xs sm:max-w-sm"></div>
+
+    <!-- AGENT CUSTOMIZATION DRAWER (Slide-over Right Panel) -->
+    <aside id="agent-drawer" class="fixed top-16 sm:top-20 right-3 sm:right-4 bottom-28 sm:bottom-24 w-[calc(100%-1.5rem)] sm:w-80 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-30 transform translate-x-[120%] transition-transform duration-300 flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-850/80">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">✏️</span>
+          <div>
+            <h2 class="text-sm font-bold text-white">Agent Profile & Desk</h2>
+            <p id="drawer-agent-id" class="text-[11px] font-mono text-slate-400">.claude/agents/chief-of-staff.md</p>
+          </div>
+        </div>
+        <button onclick="closeAgentDrawer()" class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">✕</button>
+      </div>
+
+      <div class="p-4 overflow-y-auto flex-1 space-y-4 text-xs">
+        <!-- Name & Role -->
+        <div class="space-y-2.5">
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Agent Name</label>
+            <input id="edit-agent-name" type="text" oninput="updateSelectedAgent()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400" />
+          </div>
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Single Job / Focus</label>
+            <input id="edit-agent-role" type="text" oninput="updateSelectedAgent()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400" />
+          </div>
+        </div>
+
+        <!-- Location Selector -->
+        <div>
+          <label class="block text-slate-400 font-medium mb-1.5">Move Agent Location</label>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button onclick="moveSelectedAgentTo('desk')" id="loc-btn-desk" class="loc-btn py-2 px-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-700 text-white font-medium text-left flex items-center gap-1.5">
+              <span>💺</span> Own Desk
+            </button>
+            <button onclick="moveSelectedAgentTo('couch')" id="loc-btn-couch" class="loc-btn py-2 px-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-700 text-white font-medium text-left flex items-center gap-1.5">
+              <span>🛋️</span> Lounge Couch
+            </button>
+            <button onclick="moveSelectedAgentTo('pantry')" id="loc-btn-pantry" class="loc-btn py-2 px-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-700 text-white font-medium text-left flex items-center gap-1.5">
+              <span>☕</span> Coffee Pantry
+            </button>
+            <button onclick="moveSelectedAgentTo('brain')" id="loc-btn-brain" class="loc-btn py-2 px-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-700 text-cyan-300 font-medium text-left flex items-center gap-1.5">
+              <span>🧠</span> Sync Brain
+            </button>
+          </div>
+          <!-- Swap Desk Dropdown -->
+          <div id="swap-desk-wrapper" class="mt-2 hidden">
+            <label class="block text-slate-400 font-medium mb-1">Swap Desk With:</label>
+            <select id="swap-desk-select" onchange="swapSelectedAgentDesk(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400">
+              <option value="">-- Select teammate --</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Appearance Customization -->
+        <div class="pt-2 border-t border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-300">Appearance</span>
+            <button onclick="randomizeSelectedAppearance()" class="text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1">
+              🎲 Randomize
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-slate-400 mb-1">Hair Style</label>
+              <select id="edit-agent-hair" onchange="updateSelectedAgent()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white">
+                <option value="short">Neat Crop</option>
+                <option value="bob">Modern Bob</option>
+                <option value="bun">Top Bun</option>
+                <option value="spiky">Creative Spikes</option>
+                <option value="cap">Studio Cap</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Eyewear</label>
+              <button id="edit-agent-glasses" onclick="toggleSelectedGlasses()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-medium text-center">
+                Glasses: OFF
+              </button>
+            </div>
+          </div>
+
+          <!-- Shirt Color Swatches -->
+          <div>
+            <label class="block text-slate-400 mb-1">Outfit Color</label>
+            <div id="shirt-swatches" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <!-- Hair Color Swatches -->
+          <div>
+            <label class="block text-slate-400 mb-1">Hair Color</label>
+            <div id="hair-swatches" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <!-- Complexion Swatches -->
+          <div>
+            <label class="block text-slate-400 mb-1">Complexion</label>
+            <div id="skin-swatches" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <!-- Assign Quick Task to This Agent -->
+        <div class="pt-2 border-t border-slate-800">
+          <button onclick="delegateToSelectedAgent()" class="w-full py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-semibold transition">
+            ⚡ Assign Zero-Budget Task to Agent
+          </button>
+        </div>
+
+        <!-- CLI Export Command -->
+        <div class="pt-2 border-t border-slate-800">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[11px] text-slate-400">Claude Code Sync Command</span>
+            <button onclick="copyOfficeCliCommand()" class="text-[11px] text-cyan-400 hover:underline">Copy</button>
+          </div>
+          <code id="office-cli-preview" class="block bg-slate-950 border border-slate-800 rounded-lg p-2 font-mono text-[10px] text-slate-300 break-all selectable-text">
+            /office update chief-of-staff
+          </code>
+        </div>
+      </div>
+    </aside>
+
+    <!-- BOTTOM COMMAND BAR & ACTIVITY LOG -->
+    <div class="absolute bottom-0 left-0 right-0 z-20 p-3 sm:p-4 pointer-events-none flex flex-col items-center">
+      <!-- Collapsible Live Chief Terminal Output Pill -->
+      <div id="chief-console-bar" class="pointer-events-auto w-full max-w-3xl mb-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3.5 py-2 shadow-xl flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-[11px] font-semibold shrink-0">CHIEF</span>
+          <p id="chief-status-text" class="text-xs text-slate-200 truncate">
+            Welcome to your $0 digital studio! Run <span class="font-mono text-amber-300">/setup</span> or delegate a task below.
+          </p>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button onclick="openSetupModal()" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-amber-300 border border-slate-700 transition">/setup</button>
+          <button onclick="runCommand('Status')" class="hidden sm:inline-block px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-slate-300 border border-slate-700 transition">Status</button>
+        </div>
+      </div>
+
+      <!-- Main Command Input Box -->
+      <form onsubmit="handleCommandSubmit(event)" class="pointer-events-auto w-full max-w-3xl bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-2xl p-1.5 shadow-2xl flex items-center gap-2">
+        <span class="pl-2.5 text-amber-400 font-mono font-bold text-sm">&gt;</span>
+        <input
+          id="command-input"
+          type="text"
+          autocomplete="off"
+          placeholder="Ask your Chief anything, or type /setup, /new-agent, /teach <rule>, /tidy, Status..."
+          class="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none py-2 px-1"
+        />
+        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition active:scale-95 shrink-0">
+          Run
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 1: SPAWN NEW AGENT MODAL                                        -->
+  <!-- ===================================================================== -->
+  <div id="spawn-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-bold text-white">Spawn New AI Teammate</h2>
+          <p class="text-xs text-slate-400">One agent, one job. Brings their own desk (up to 9).</p>
+        </div>
+        <button onclick="closeSpawnModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800">✕</button>
+      </div>
+
+      <!-- Preview Card -->
+      <div class="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div id="spawn-avatar-badge" class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold text-slate-950 shadow-inner" style="background-color: #38bdf8;">
+            🤖
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="spawn-preview-name" class="font-bold text-white text-sm">Milo</span>
+              <span id="spawn-preview-traits" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">Neat Crop • Glasses</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Desk #<span id="spawn-next-desk">2</span> • Ready to hire</p>
+          </div>
+        </div>
+        <button type="button" onclick="randomizeSpawnCandidate()" class="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-lg transition active:rotate-180" title="Randomize Name & Look">
+          🎲
+        </button>
+      </div>
+
+      <!-- Job Title Input + Quick Zero-Budget Presets -->
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-slate-300">What is this agent's single job?</label>
+        <input id="spawn-job-input" type="text" placeholder="e.g., Digital Product Designer" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400" />
+        <div class="flex flex-wrap gap-1.5 pt-1">
+          <button type="button" onclick="setSpawnJob('Digital Product Designer')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Digital Product Designer</button>
+          <button type="button" onclick="setSpawnJob('Zero-Ad SEO Copywriter')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Zero-Ad SEO Copywriter</button>
+          <button type="button" onclick="setSpawnJob('Client Outreach Scout')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Client Outreach Scout</button>
+          <button type="button" onclick="setSpawnJob('Gumroad & Store Ops')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Gumroad & Store Ops</button>
+        </div>
+      </div>
+
+      <!-- Generated Claude Code Command Preview -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] text-slate-400 font-medium">Claude Code Terminal Command</span>
+          <button type="button" onclick="copySpawnCliCommand()" class="text-[11px] text-amber-400 hover:underline font-medium">Copy Command</button>
+        </div>
+        <code id="spawn-cli-command" class="block font-mono text-[11px] text-emerald-300 break-all selectable-text">
+          /new-agent Milo — Digital Product Designer
+        </code>
+      </div>
+
+      <div class="flex items-center gap-2.5 pt-1">
+        <button type="button" onclick="closeSpawnModal()" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm font-semibold">Cancel</button>
+        <button type="button" onclick="confirmSpawnAgent()" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs sm:text-sm font-bold shadow-lg">
+          Hire & Place Desk
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 2: /SETUP 3-STEP DIGITAL BUSINESS ONBOARDING WIZARD             -->
+  <!-- ===================================================================== -->
+  <div id="setup-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-mono text-xs font-bold">/setup</span>
+          <h2 class="text-base sm:text-lg font-bold text-white">Zero-Budget Digital Business Setup</h2>
+        </div>
+        <button onclick="closeSetupModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800">✕</button>
+      </div>
+
+      <!-- Step Indicator -->
+      <div class="grid grid-cols-3 gap-2 text-center text-[11px] font-semibold">
+        <div id="setup-step-pill-1" class="py-1.5 rounded-xl bg-amber-500 text-slate-950">1. Name Office</div>
+        <div id="setup-step-pill-2" class="py-1.5 rounded-xl bg-slate-800 text-slate-400">2. Name Chief</div>
+        <div id="setup-step-pill-3" class="py-1.5 rounded-xl bg-slate-800 text-slate-400">3. $0 Product</div>
+      </div>
+
+      <!-- Step 1 -->
+      <div id="setup-step-1" class="space-y-3">
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Your digital office runs with <strong class="text-emerald-400">$0 overhead</strong> using free static hosting, Markdown memory, and digital fulfillment. What should we call your studio?
+        </p>
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Digital Office Name</label>
+          <input id="setup-office-input" type="text" value="O2San Digital Studio" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400" />
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div id="setup-step-2" class="space-y-3 hidden">
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Your Chief of Staff plans tasks, coordinates specialists, logs daily wins to <span class="font-mono text-cyan-300">brain/</span>, and always asks permission before sending or publishing anything.
+        </p>
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Chief of Staff Name</label>
+          <input id="setup-chief-input" type="text" value="Nova" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400" />
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div id="setup-step-3" class="space-y-3 hidden">
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Pick your first <strong class="text-amber-300">$0-to-build digital product or micro-service</strong>. Your Chief will write the launch blueprint straight into <span class="font-mono text-cyan-300">05-Projects/first-product.md</span>.
+        </p>
+        <div class="space-y-2" id="product-choice-list">
+          <label class="flex items-start gap-3 p-3 rounded-2xl border border-amber-500/60 bg-amber-500/10 cursor-pointer">
+            <input type="radio" name="zero-product" value="Printable Kids Activity & Coloring Pack ($9)" checked class="mt-1 accent-amber-500" />
+            <div>
+              <div class="text-xs font-bold text-white">Printable Kids Activity & Coloring Pack ($9)</div>
+              <div class="text-[11px] text-slate-400">Zero inventory PDF bundle sold on Gumroad/Etsy with organic Pinterest pins.</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 rounded-2xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer">
+            <input type="radio" name="zero-product" value="Niche Freelance ROI & Quote Calculator ($19)" class="mt-1 accent-amber-500" />
+            <div>
+              <div class="text-xs font-bold text-white">Niche Freelance ROI & Quote Calculator ($19)</div>
+              <div class="text-[11px] text-slate-400">Single-file HTML/Notion toolkit for solo consultants & agencies.</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 rounded-2xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer">
+            <input type="radio" name="zero-product" value="24-Hour High-Converting Landing Page Service ($149)" class="mt-1 accent-amber-500" />
+            <div>
+              <div class="text-xs font-bold text-white">24-Hour High-Converting Landing Page Service ($149)</div>
+              <div class="text-[11px] text-slate-400">Zero-ad service built with Tailwind & hosted free on GitHub Pages / Vercel.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Wizard Navigation -->
+      <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+        <button id="setup-prev-btn" onclick="prevSetupStep()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hidden">Back</button>
+        <div class="ml-auto flex items-center gap-2">
+          <button id="setup-next-btn" onclick="nextSetupStep()" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold">Next Step →</button>
+          <button id="setup-finish-btn" onclick="finishSetupWizard()" class="hidden px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold">Save to Brain & Launch 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 3: NUMBERED BRAIN VAULT (00-Core to 10-Office)                  -->
+  <!-- ===================================================================== -->
+  <div id="brain-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-5">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-5xl w-full h-[90vh] sm:h-[82vh] flex flex-col shadow-2xl overflow-hidden">
+      <!-- Brain Modal Header -->
+      <div class="px-4 sm:px-6 py-3.5 border-b border-slate-800 bg-slate-850 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🧠</span>
+          <div>
+            <h2 class="text-sm sm:text-base font-bold text-white">Numbered Brain Vault <span class="text-xs font-mono text-cyan-400">(Obsidian & GitHub Ready)</span></h2>
+            <p class="text-[11px] text-slate-400">Auto-saved locally • Plain Markdown knowledge graph</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="downloadBrainMarkdownBundle()" class="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-semibold transition">
+            ⬇ Download .md Bundle
+          </button>
+          <button onclick="downloadBrainJson()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">
+            ⬇ .json
+          </button>
+          <button onclick="closeBrainModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800">✕</button>
+        </div>
+      </div>
+
+      <!-- Brain Content Split Pane -->
+      <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <!-- Folder Tree Sidebar -->
+        <div id="brain-file-list" class="w-full md:w-72 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/60 p-3 overflow-y-auto max-h-44 md:max-h-none space-y-1">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Markdown Editor Pane -->
+        <div class="flex-1 flex flex-col bg-slate-900 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+            <span id="brain-active-filepath" class="font-mono text-xs text-cyan-300 font-semibold">00-Core/about-me.md</span>
+            <span id="brain-save-indicator" class="text-[11px] text-emerald-400">✓ Saved</span>
+          </div>
+          <textarea
+            id="brain-editor-textarea"
+            oninput="handleBrainNoteEdit(this.value)"
+            class="flex-1 w-full bg-slate-950/50 p-4 font-mono text-xs sm:text-sm text-slate-200 leading-relaxed focus:outline-none resize-none selectable-text"
+            spellcheck="false"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 4: GUARD SAFETY APPROVAL GATE (.claude/hooks/guard.py)          -->
+  <!-- ===================================================================== -->
+  <div id="guard-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+    <div class="bg-slate-900 border border-emerald-500/40 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 text-lg">🛡️</div>
+          <div>
+            <h2 class="text-base font-bold text-white">Guard Safety Hook</h2>
+            <p class="text-[11px] font-mono text-emerald-400">.claude/hooks/guard.py</p>
+          </div>
+        </div>
+        <button onclick="closeGuardModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800">✕</button>
+      </div>
+
+      <div id="guard-pending-box" class="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-3.5 space-y-2 hidden">
+        <div class="text-xs font-bold text-amber-300 uppercase tracking-wider">Approval Required Before External Action</div>
+        <p id="guard-pending-desc" class="text-xs text-slate-200 leading-relaxed"></p>
+        <div class="flex items-center gap-2 pt-1">
+          <button onclick="approveGuardAction()" class="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold">Approve & Execute</button>
+          <button onclick="rejectGuardAction()" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Block Action</button>
+        </div>
+      </div>
+
+      <div class="space-y-2 text-xs text-slate-300 bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5">
+        <div class="font-semibold text-white">Active Zero-Risk Defaults:</div>
+        <ul class="space-y-1.5 text-slate-400 list-disc pl-4">
+          <li><strong class="text-slate-200">No Silent External Actions:</strong> Stops and asks before sending emails, publishing pages, or spending money.</li>
+          <li><strong class="text-slate-200">Archive Over Delete:</strong> Moves old drafts to <span class="font-mono text-cyan-300">08-Inbox/archive/</span> instead of permanent deletion.</li>
+          <li><strong class="text-slate-200">Secret Isolation:</strong> Blocks agents from reading <span class="font-mono text-amber-300">.env</span> keys or credentials.</li>
+        </ul>
+      </div>
+
+      <button onclick="closeGuardModal()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold">Got It</button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- APPLICATION LOGIC & THREE.JS 3D ISOMETRIC ENGINE                      -->
+  <!-- ===================================================================== -->
+  <script>
+    // =========================================================================
+    // 1. DEFAULT STATE & PERSISTENCE (localStorage)
+    // =========================================================================
+    const STORAGE_KEY = 'my_ai_office_v1';
+
+    const SHIRT_COLORS = ['#f59e0b', '#38bdf8', '#10b981', '#a855f7', '#f43f5e', '#64748b', '#ec4899'];
+    const HAIR_COLORS  = ['#1e293b', '#451a03', '#78350f', '#d97706', '#94a3b8', '#7f1d1d'];
+    const SKIN_TONES   = ['#fde68a', '#f5d0a9', '#e0ac69', '#c68642', '#8d5524', '#5c3818'];
+
+    const DEFAULT_BRAIN_FILES = {
+      '00-Core/about-me.md': `# About Me & My Digital Studio\n\n- **Office Name:** O2San Digital Studio\n- **Chief of Staff:** Nova\n- **Operating Budget:** $0.00 (Zero-Overhead Digital Model)\n- **Mission:** Build, validate, and sell high-margin digital assets and micro-services without paid ads or fixed SaaS overhead.\n`,
+      '01-Business/digital-studio.md': `# Zero-Budget Business Engine\n\n## Core Pillars\n1. **Zero Inventory:** Digital templates, printable packs, single-file tools, and fast-turnaround web services.\n2. **Zero Ad Spend:** Organic distribution via SEO guides, Reddit/IndieHackers value posts, and Pinterest visual pins.\n3. **Free Infrastructure:** GitHub Pages, Gumroad/LemonSqueezy (pay only on sale), and local Markdown Brain.\n`,
+      '02-Brand/storefront.md': `# Storefront & Positioning\n\n- **Voice:** Helpful, crisp, practical, zero fluff.\n- **Primary Offer:** Printable Kids Activity & Coloring Pack ($9)\n- **Lead Magnet:** Free 3-page sample PDF to capture newsletter subscribers.\n`,
+      '03-AI-Office/RULES.md': `# Office Operating Rules (Levels A–D)\n\n- **Level A (Guard):** Always ask before sending, posting publicly, or spending money.\n- **Level B (Memory):** Every completed task must be summarized in 07-Daily-Logs/today.md.\n- **Level C (Focus):** One agent, one job. Keep the team lean (3 to 7 specialists).\n- **Level D (Archive):** Never delete files; move obsolete drafts to 08-Inbox/archive/.\n`,
+      '05-Projects/first-product.md': `# Project 01: Printable Kids Activity & Coloring Pack ($9)\n\n## Zero-Budget Launch Checklist\n- [x] Define niche & 25-page printable theme (Space & Dinosaurs)\n- [ ] Generate crisp black-and-white vector line art & puzzle sheets\n- [ ] Package PDF bundle + 3-page free teaser\n- [ ] Publish storefront listing & schedule 5 organic pins\n`,
+      '07-Daily-Logs/today.md': `# Daily Log — Studio Session\n\n- **Chief Status:** Online & ready at Desk #1.\n- **Revenue Logged:** $0 (Pre-launch setup complete).\n- **Next Action:** Run /setup or spawn a specialist agent to build the first deliverable.\n`,
+      '10-Office/board.md': `# Live Office Kanban Board\n\n## Doing\n- [Chief] Preparing zero-budget launch roadmap\n\n## Waiting for Approval (Guard)\n- None\n\n## Done\n- Initialized 3D Isometric AI Office & Numbered Brain Vault\n`
+    };
+
+    const DEFAULT_STATE = {
+      officeName: 'O2San Digital Studio',
+      chiefName: 'Nova',
+      revenue: 0,
+      selectedProduct: 'Printable Kids Activity & Coloring Pack ($9)',
+      activeBrainFile: '00-Core/about-me.md',
+      brainFiles: { ...DEFAULT_BRAIN_FILES },
+      agents: [
+        {
+          id: 'chief-of-staff',
+          name: 'Nova',
+          role: 'Chief of Staff',
+          isChief: true,
+          deskIndex: 0,
+          location: 'desk', // 'desk' | 'couch' | 'pantry' | 'brain'
+          appearance: {
+            hairStyle: 'bob',
+            hairColor: '#1e293b',
+            glasses: true,
+            shirtColor: '#f59e0b',
+            skinTone: '#f5d0a9'
+          }
+        }
+      ]
+    };
+
+    let state = loadState();
+    let selectedAgentId = null;
+    let pendingGuardCallback = null;
+    let pendingGuardDescription = '';
+    let setupStep = 1;
+    let spawnCandidate = null;
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE));
+        const parsed = JSON.parse(raw);
+        return {
+          ...JSON.parse(JSON.stringify(DEFAULT_STATE)),
+          ...parsed,
+          brainFiles: { ...DEFAULT_BRAIN_FILES, ...(parsed.brainFiles || {}) }
+        };
+      } catch (e) {
+        return JSON.parse(JSON.stringify(DEFAULT_STATE));
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('Could not persist state to localStorage:', e);
+      }
+      updateHud();
+    }
+
+    // =========================================================================
+    // 2. THREE.JS 3D ISOMETRIC OFFICE SCENE SETUP
+    // =========================================================================
+    let scene, camera, renderer, controls, raycaster, mouse;
+    let brainOrb, brainRing1, brainRing2, brainGlowLight;
+    const deskMeshes = [];   // Up to 9 desks
+    const agentObjects = {}; // Map of agent.id -> { group, leftArm, rightArm, headGroup, currentPos, targetPos, bubbleText, bubbleTimer }
+    const clickTargets = []; // Meshes that respond to pointer clicks
+
+    // Pre-planned ergonomic layout for up to 9 desks around the central Brain
+    // Central Brain is at (0, 0, 0). Lounge Couch is at (-6.5, 0, 5.5). Coffee Pantry is at (6.5, 0, -5.5).
+    const DESK_SLOTS = [
+      { x: 0,    z: -4.6, rotY: 0 },          // Desk 1 (Chief of Staff prime spot facing room)
+      { x: -4.6, z: -2.4, rotY: Math.PI / 3 },
+      { x: 4.6,  z: -2.4, rotY: -Math.PI / 3 },
+      { x: -5.2, z: 1.4,  rotY: Math.PI / 2 },
+      { x: 5.2,  z: 1.4,  rotY: -Math.PI / 2 },
+      { x: -2.6, z: 5.2,  rotY: Math.PI },
+      { x: 2.6,  z: 5.2,  rotY: Math.PI },
+      { x: -2.8, z: -6.2, rotY: 0 },
+      { x: 2.8,  z: -6.2, rotY: 0 }
+    ];
+
+    const LOUNGE_SPOTS = [
+      { x: -6.4, z: 5.3 },
+      { x: -5.4, z: 6.1 },
+      { x: -7.1, z: 4.4 }
+    ];
+
+    const PANTRY_SPOTS = [
+      { x: 6.2, z: -5.2 },
+      { x: 5.4, z: -6.1 },
+      { x: 6.8, z: -4.2 }
+    ];
+
+    function initThreeOffice() {
+      const canvas = document.getElementById('office-canvas');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color('#0b1120');
+      scene.fog = new THREE.FogExp2('#0b1120', 0.022);
+
+      // Isometric-feel perspective camera with narrow FOV
+      const aspect = window.innerWidth / window.innerHeight;
+      camera = new THREE.PerspectiveCamera(36, aspect, 0.1, 100);
+      camera.position.set(16, 15, 16);
+      camera.lookAt(0, 0.8, 0);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // OrbitControls (touch & mouse friendly)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.minDistance = 8;
+      controls.maxDistance = 32;
+      controls.maxPolarAngle = Math.PI / 2.15; // Prevent going underneath floor
+      controls.target.set(0, 0.8, 0);
+
+      // Lighting: Warm studio key light + cool ambient + Brain cyan glow
+      const ambientLight = new THREE.AmbientLight('#cbd5e1', 0.65);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight('#fff7ed', 0.95);
+      dirLight.position.set(10, 18, 12);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 2;
+      dirLight.shadow.camera.far = 45;
+      const d = 12;
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      dirLight.shadow.bias = -0.0005;
+      scene.add(dirLight);
+
+      const rimLight = new THREE.DirectionalLight('#38bdf8', 0.35);
+      rimLight.position.set(-12, 8, -10);
+      scene.add(rimLight);
+
+      buildRoomEnvironment();
+      buildCentralBrain();
+      buildLoungeAndPantry();
+      syncSceneWithState();
+
+      // Raycasting for clicking Agents, Desks, and Brain
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+      setupPointerInteraction(canvas);
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function buildRoomEnvironment() {
+      const roomSize = 17;
+
+      // Warm wooden floor planks base
+      const floorGeo = new THREE.BoxGeometry(roomSize, 0.4, roomSize);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: '#8b5a2b',
+        roughness: 0.65,
+        metalness: 0.05
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.position.y = -0.2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // Subtle wood plank grid lines
+      const gridHelper = new THREE.GridHelper(roomSize, 17, '#5c3a18', '#6e4720');
+      gridHelper.position.y = 0.01;
+      scene.add(gridHelper);
+
+      // Architectural cutaway back walls (North & West) for clean isometric look
+      const wallMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.8 });
+      const trimMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.6 });
+
+      const backWallN = new THREE.Mesh(new THREE.BoxGeometry(roomSize + 0.4, 3.4, 0.3), wallMat);
+      backWallN.position.set(0, 1.5, -roomSize / 2 - 0.15);
+      backWallN.receiveShadow = true;
+      scene.add(backWallN);
+
+      const backWallW = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.4, roomSize + 0.4), wallMat);
+      backWallW.position.set(-roomSize / 2 - 0.15, 1.5, 0);
+      backWallW.receiveShadow = true;
+      scene.add(backWallW);
+
+      // Wall top trim & warm LED strip accent
+      const trimN = new THREE.Mesh(new THREE.BoxGeometry(roomSize + 0.4, 0.15, 0.36), trimMat);
+      trimN.position.set(0, 3.25, -roomSize / 2 - 0.15);
+      scene.add(trimN);
+
+      const trimW = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.15, roomSize + 0.4), trimMat);
+      trimW.position.set(-roomSize / 2 - 0.15, 3.25, 0);
+      scene.add(trimW);
+
+      // Potted office plants in corners for warmth
+      createPlant(-7.5, -7.5);
+      createPlant(7.5, 7.5);
+      createPlant(-7.5, 7.5);
+    }
+
+    function createPlant(x, z) {
+      const group = new THREE.Group();
+      const pot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.26, 0.5, 12),
+        new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.5 })
+      );
+      pot.position.y = 0.25;
+      pot.castShadow = true;
+      group.add(pot);
+
+      const foliageMat = new THREE.MeshStandardMaterial({ color: '#10b981', roughness: 0.7 });
+      const leaf1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), foliageMat);
+      leaf1.position.y = 0.75;
+      leaf1.castShadow = true;
+      group.add(leaf1);
+
+      const leaf2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), foliageMat);
+      leaf2.position.set(0.18, 1.05, 0.1);
+      leaf2.castShadow = true;
+      group.add(leaf2);
+
+      group.position.set(x, 0, z);
+      scene.add(group);
+    }
+
+    function buildCentralBrain() {
+      const brainGroup = new THREE.Group();
+      brainGroup.position.set(0, 0, 0);
+
+      // Circular stone/slate pedestal rug
+      const basePedestal = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.55, 1.7, 0.14, 32),
+        new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.4, metalness: 0.3 })
+      );
+      basePedestal.position.y = 0.07;
+      basePedestal.receiveShadow = true;
+      brainGroup.add(basePedestal);
+
+      const innerRing = new THREE.Mesh(
+        new THREE.RingGeometry(1.25, 1.38, 32),
+        new THREE.MeshBasicMaterial({ color: '#22d3ee', side: THREE.DoubleSide })
+      );
+      innerRing.rotation.x = -Math.PI / 2;
+      innerRing.position.y = 0.15;
+      brainGroup.add(innerRing);
+
+      // Glowing floating crystal ("The Brain")
+      const crystalGeo = new THREE.OctahedronGeometry(0.68, 0);
+      const crystalMat = new THREE.MeshStandardMaterial({
+        color: '#22d3ee',
+        emissive: '#0891b2',
+        emissiveIntensity: 0.85,
+        roughness: 0.15,
+        metalness: 0.2
+      });
+      brainOrb = new THREE.Mesh(crystalGeo, crystalMat);
+      brainOrb.position.y = 1.45;
+      brainOrb.castShadow = true;
+      brainOrb.userData = { type: 'brain' };
+      brainGroup.add(brainOrb);
+      clickTargets.push(brainOrb);
+
+      // Orbiting data rings around The Brain
+      const ringGeo = new THREE.TorusGeometry(1.02, 0.025, 12, 48);
+      const ringMat = new THREE.MeshBasicMaterial({ color: '#67e8f9' });
+      brainRing1 = new THREE.Mesh(ringGeo, ringMat);
+      brainRing1.position.y = 1.45;
+      brainRing1.rotation.x = Math.PI / 3;
+      brainGroup.add(brainRing1);
+
+      brainRing2 = new THREE.Mesh(ringGeo, ringMat);
+      brainRing2.position.y = 1.45;
+      brainRing2.rotation.y = Math.PI / 3;
+      brainGroup.add(brainRing2);
+
+      // Point light radiating from The Brain
+      brainGlowLight = new THREE.PointLight('#22d3ee', 1.4, 8);
+      brainGlowLight.position.set(0, 1.6, 0);
+      brainGroup.add(brainGlowLight);
+
+      scene.add(brainGroup);
+    }
+
+    function buildLoungeAndPantry() {
+      // 1. LOUNGE AREA (Bottom-Left Corner: -6.4, 5.6)
+      const loungeGroup = new THREE.Group();
+      loungeGroup.position.set(-6.3, 0, 5.6);
+      loungeGroup.rotation.y = Math.PI / 4;
+
+      // Cozy rug
+      const rug = new THREE.Mesh(
+        new THREE.BoxGeometry(3.4, 0.04, 2.4),
+        new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.9 })
+      );
+      rug.position.y = 0.02;
+      rug.receiveShadow = true;
+      loungeGroup.add(rug);
+
+      // Couch base & backrest
+      const couchMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.7 });
+      const couchSeat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.42, 0.95), couchMat);
+      couchSeat.position.set(0, 0.25, -0.35);
+      couchSeat.castShadow = true;
+      couchSeat.receiveShadow = true;
+      loungeGroup.add(couchSeat);
+
+      const couchBack = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.65, 0.25), couchMat);
+      couchBack.position.set(0, 0.65, -0.72);
+      couchBack.castShadow = true;
+      loungeGroup.add(couchBack);
+
+      // Coffee table
+      const table = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.3, 0.65),
+        new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.4 })
+      );
+      table.position.set(0, 0.18, 0.65);
+      table.castShadow = true;
+      loungeGroup.add(table);
+
+      scene.add(loungeGroup);
+
+      // 2. COFFEE PANTRY CORNER (Top-Right Corner: 6.4, -5.8)
+      const pantryGroup = new THREE.Group();
+      pantryGroup.position.set(6.4, 0, -5.8);
+      pantryGroup.rotation.y = -Math.PI / 4;
+
+      // Pantry counter
+      const counter = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.9, 0.85),
+        new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.5 })
+      );
+      counter.position.set(0, 0.45, -0.3);
+      counter.castShadow = true;
+      counter.receiveShadow = true;
+      pantryGroup.add(counter);
+
+      // Countertop surface
+      const counterTop = new THREE.Mesh(
+        new THREE.BoxGeometry(2.5, 0.08, 0.95),
+        new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.3 })
+      );
+      counterTop.position.set(0, 0.92, -0.3);
+      pantryGroup.add(counterTop);
+
+      // Espresso Machine
+      const espresso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 0.5, 0.45),
+        new THREE.MeshStandardMaterial({ color: '#ef4444', roughness: 0.3, metalness: 0.4 })
+      );
+      espresso.position.set(-0.5, 1.2, -0.3);
+      espresso.castShadow = true;
+      pantryGroup.add(espresso);
+
+      // Water dispenser / mugs
+      const waterJug = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 0.45, 16),
+        new THREE.MeshStandardMaterial({ color: '#38bdf8', transparent: true, opacity: 0.8 })
+      );
+      waterJug.position.set(0.55, 1.18, -0.3);
+      pantryGroup.add(waterJug);
+
+      scene.add(pantryGroup);
+    }
+
+    function createDeskMesh(slotIndex) {
+      const slot = DESK_SLOTS[slotIndex];
+      const deskGroup = new THREE.Group();
+      deskGroup.position.set(slot.x, 0, slot.z);
+      deskGroup.rotation.y = slot.rotY;
+
+      // Desk tabletop (warm oak)
+      const topMat = new THREE.MeshStandardMaterial({
+        color: slotIndex === 0 ? '#f59e0b' : '#d97706',
+        roughness: 0.45
+      });
+      const tabletop = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.1, 0.9), topMat);
+      tabletop.position.set(0, 0.75, 0);
+      tabletop.castShadow = true;
+      tabletop.receiveShadow = true;
+      deskGroup.add(tabletop);
+
+      // Metal legs
+      const legMat = new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.5, roughness: 0.4 });
+      const legOffsets = [[-0.78, -0.36], [0.78, -0.36], [-0.78, 0.36], [0.78, 0.36]];
+      legOffsets.forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.75, 0.08), legMat);
+        leg.position.set(lx, 0.375, lz);
+        leg.castShadow = true;
+        deskGroup.add(leg);
+      });
+
+      // Sleek Laptop on Desk
+      const laptopBase = new THREE.Mesh(
+        new THREE.BoxGeometry(0.52, 0.03, 0.36),
+        new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.6 })
+      );
+      laptopBase.position.set(0, 0.815, 0.05);
+      deskGroup.add(laptopBase);
+
+      const laptopScreen = new THREE.Mesh(
+        new THREE.BoxGeometry(0.52, 0.34, 0.03),
+        new THREE.MeshStandardMaterial({ color: '#0f172a', emissive: '#0284c7', emissiveIntensity: 0.35 })
+      );
+      laptopScreen.position.set(0, 0.98, 0.22);
+      laptopScreen.rotation.x = -0.2;
+      deskGroup.add(laptopScreen);
+
+      // Office Swivel Chair behind desk (-Z side)
+      const chairSeat = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 0.1, 0.55),
+        new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.6 })
+      );
+      chairSeat.position.set(0, 0.46, -0.62);
+      chairSeat.castShadow = true;
+      deskGroup.add(chairSeat);
+
+      const chairBack = new THREE.Mesh(
+        new THREE.BoxGeometry(0.52, 0.52, 0.08),
+        new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.6 })
+      );
+      chairBack.position.set(0, 0.74, -0.86);
+      chairBack.castShadow = true;
+      deskGroup.add(chairBack);
+
+      const chairStem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.45, 8), legMat);
+      chairStem.position.set(0, 0.23, -0.62);
+      deskGroup.add(chairStem);
+
+      scene.add(deskGroup);
+      return deskGroup;
+    }
+
+    function createAgentCharacter(agent) {
+      const root = new THREE.Group();
+      const app = agent.appearance;
+
+      // Torso (Shirt)
+      const shirtMat = new THREE.MeshStandardMaterial({ color: app.shirtColor, roughness: 0.5 });
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.62, 16), shirtMat);
+      torso.position.y = 0.76;
+      torso.castShadow = true;
+      torso.userData = { type: 'agent', agentId: agent.id };
+      root.add(torso);
+      clickTargets.push(torso);
+
+      // Legs
+      const pantsMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.8 });
+      const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.46, 10), pantsMat);
+      leftLeg.position.set(-0.1, 0.23, 0);
+      leftLeg.castShadow = true;
+      root.add(leftLeg);
+
+      const rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.46, 10), pantsMat);
+      rightLeg.position.set(0.1, 0.23, 0);
+      rightLeg.castShadow = true;
+      root.add(rightLeg);
+
+      // Arms
+      const skinMat = new THREE.MeshStandardMaterial({ color: app.skinTone, roughness: 0.6 });
+      const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.06, 0.48, 10), skinMat);
+      leftArm.position.set(-0.3, 0.78, 0);
+      leftArm.rotation.z = 0.15;
+      leftArm.castShadow = true;
+      root.add(leftArm);
+
+      const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.06, 0.48, 10), skinMat);
+      rightArm.position.set(0.3, 0.78, 0);
+      rightArm.rotation.z = -0.15;
+      rightArm.castShadow = true;
+      root.add(rightArm);
+
+      // Head Group
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 1.32, 0);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 20), skinMat);
+      head.castShadow = true;
+      head.userData = { type: 'agent', agentId: agent.id };
+      headGroup.add(head);
+      clickTargets.push(head);
+
+      // Eyes
+      const eyeMat = new THREE.MeshBasicMaterial({ color: '#0f172a' });
+      const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), eyeMat);
+      leftEye.position.set(-0.08, 0.02, 0.22);
+      headGroup.add(leftEye);
+
+      const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), eyeMat);
+      rightEye.position.set(0.08, 0.02, 0.22);
+      headGroup.add(rightEye);
+
+      // Optional Glasses
+      if (app.glasses) {
+        const glassMat = new THREE.MeshStandardMaterial({ color: '#0f172a', metalness: 0.7, roughness: 0.2 });
+        const frameL = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.012, 8, 16), glassMat);
+        frameL.position.set(-0.085, 0.02, 0.235);
+        headGroup.add(frameL);
+
+        const frameR = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.012, 8, 16), glassMat);
+        frameR.position.set(0.085, 0.02, 0.235);
+        headGroup.add(frameR);
+
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.012), glassMat);
+        bridge.position.set(0, 0.02, 0.24);
+        headGroup.add(bridge);
+      }
+
+      // Hair Styles
+      const hairMat = new THREE.MeshStandardMaterial({ color: app.hairColor, roughness: 0.75 });
+      if (app.hairStyle === 'short') {
+        const hairCap = new THREE.Mesh(
+          new THREE.SphereGeometry(0.262, 18, 18, 0, Math.PI * 2, 0, Math.PI * 0.55),
+          hairMat
+        );
+        hairCap.rotation.x = -0.15;
+        headGroup.add(hairCap);
+      } else if (app.hairStyle === 'bob') {
+        const hairBob = new THREE.Mesh(
+          new THREE.SphereGeometry(0.275, 18, 18, 0, Math.PI * 2, 0, Math.PI * 0.68),
+          hairMat
+        );
+        hairBob.rotation.x = -0.22;
+        headGroup.add(hairBob);
+      } else if (app.hairStyle === 'bun') {
+        const hairBase = new THREE.Mesh(
+          new THREE.SphereGeometry(0.26, 18, 18, 0, Math.PI * 2, 0, Math.PI * 0.52),
+          hairMat
+        );
+        headGroup.add(hairBase);
+        const bun = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 14), hairMat);
+        bun.position.set(0, 0.28, -0.06);
+        headGroup.add(bun);
+      } else if (app.hairStyle === 'spiky') {
+        for (let i = 0; i < 5; i++) {
+          const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 8), hairMat);
+          spike.position.set((i - 2) * 0.07, 0.26, 0);
+          spike.rotation.z = (2 - i) * 0.22;
+          headGroup.add(spike);
+        }
+      } else if (app.hairStyle === 'cap') {
+        const capMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.5 });
+        const crown = new THREE.Mesh(
+          new THREE.SphereGeometry(0.265, 18, 18, 0, Math.PI * 2, 0, Math.PI * 0.5),
+          capMat
+        );
+        headGroup.add(crown);
+        const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.02, 16, 1, false, -Math.PI / 3, (2 * Math.PI) / 3), capMat);
+        visor.position.set(0, 0.06, 0.16);
+        headGroup.add(visor);
+      }
+
+      // Chief of Staff Gold Crown / Halo Ring
+      if (agent.isChief) {
+        const chiefHalo = new THREE.Mesh(
+          new THREE.TorusGeometry(0.16, 0.018, 10, 24),
+          new THREE.MeshBasicMaterial({ color: '#fbbf24' })
+        );
+        chiefHalo.rotation.x = Math.PI / 2;
+        chiefHalo.position.y = 0.36;
+        headGroup.add(chiefHalo);
+      }
+
+      root.add(headGroup);
+
+      // Selection ring under feet
+      const selectRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.34, 0.42, 24),
+        new THREE.MeshBasicMaterial({ color: '#fbbf24', side: THREE.DoubleSide })
+      );
+      selectRing.rotation.x = -Math.PI / 2;
+      selectRing.position.y = 0.02;
+      selectRing.visible = (selectedAgentId === agent.id);
+      root.add(selectRing);
+
+      return {
+        group: root,
+        leftArm,
+        rightArm,
+        leftLeg,
+        rightLeg,
+        headGroup,
+        selectRing
+      };
+    }
+
+    function getDestinationCoords(agent, agentArrayIndex) {
+      if (agent.location === 'couch') {
+        const spot = LOUNGE_SPOTS[agentArrayIndex % LOUNGE_SPOTS.length];
+        return new THREE.Vector3(spot.x, 0, spot.z);
+      }
+      if (agent.location === 'pantry') {
+        const spot = PANTRY_SPOTS[agentArrayIndex % PANTRY_SPOTS.length];
+        return new THREE.Vector3(spot.x, 0, spot.z);
+      }
+      if (agent.location === 'brain') {
+        const angle = (agentArrayIndex * 1.1) + 0.5;
+        return new THREE.Vector3(Math.cos(angle) * 2.1, 0, Math.sin(angle) * 2.1);
+      }
+      // Default: 'desk' -> stand/sit right behind their desk chair
+      const slot = DESK_SLOTS[agent.deskIndex] || DESK_SLOTS[0];
+      const offset = new THREE.Vector3(0, 0, -0.62).applyAxisAngle(new THREE.Vector3(0, 1, 0), slot.rotY);
+      return new THREE.Vector3(slot.x + offset.x, 0, slot.z + offset.z);
+    }
+
+    function syncSceneWithState() {
+      // 1. Rebuild desks up to number of active agents (or highest occupied deskIndex + 1)
+      while (deskMeshes.length > 0) {
+        const d = deskMeshes.pop();
+        scene.remove(d);
+      }
+      const neededDesks = Math.min(9, Math.max(1, state.agents.length));
+      for (let i = 0; i < neededDesks; i++) {
+        deskMeshes.push(createDeskMesh(i));
+      }
+
+      // 2. Rebuild agent 3D avatars cleanly while preserving current positions
+      const previousPositions = {};
+      Object.keys(agentObjects).forEach(id => {
+        previousPositions[id] = agentObjects[id].group.position.clone();
+        scene.remove(agentObjects[id].group);
+        delete agentObjects[id];
+      });
+      // Reset clickTargets to only Brain
+      clickTargets.length = 0;
+      if (brainOrb) clickTargets.push(brainOrb);
+
+      state.agents.forEach((agent, idx) => {
+        const parts = createAgentCharacter(agent);
+        const targetPos = getDestinationCoords(agent, idx);
+        const startPos = previousPositions[agent.id] || targetPos.clone();
+        parts.group.position.copy(startPos);
+
+        // Face desk if at desk
+        const slot = DESK_SLOTS[agent.deskIndex] || DESK_SLOTS[0];
+        if (agent.location === 'desk') {
+          parts.group.rotation.y = slot.rotY;
+        }
+
+        scene.add(parts.group);
+        agentObjects[agent.id] = {
+          ...parts,
+          targetPos,
+          bubbleText: '',
+          bubbleTimer: 0,
+          isSyncingToBrain: false
+        };
+      });
+
+      rebuildFloatingLabels();
+    }
+
+    // =========================================================================
+    // 3. FLOATING 3D LABELS & PERIODIC BRAIN SYNC ANIMATION
+    // =========================================================================
+    function rebuildFloatingLabels() {
+      const layer = document.getElementById('floating-labels-layer');
+      layer.innerHTML = '';
+
+      // Brain label
+      const brainLabel = document.createElement('div');
+      brainLabel.id = 'label-brain';
+      brainLabel.className = 'floating-label flex flex-col items-center';
+      brainLabel.innerHTML = `
+        <div class="px-2.5 py-0.5 rounded-full bg-cyan-950/90 border border-cyan-400/60 text-cyan-200 text-[10px] font-bold shadow-lg tracking-wide">
+          🧠 The Brain (00–10)
+        </div>
+      `;
+      layer.appendChild(brainLabel);
+
+      // Agent nameplates & speech bubbles
+      state.agents.forEach(agent => {
+        const el = document.createElement('div');
+        el.id = `label-agent-${agent.id}`;
+        el.className = 'floating-label flex flex-col items-center gap-1';
+        el.innerHTML = `
+          <div id="bubble-${agent.id}" class="hidden px-2.5 py-1 rounded-xl bg-slate-900/95 border border-amber-400/60 text-amber-200 text-[10px] font-medium shadow-xl whitespace-nowrap"></div>
+          <div class="px-2 py-0.5 rounded-full bg-slate-900/85 border ${agent.isChief ? 'border-amber-400/70 text-amber-300' : 'border-slate-700 text-slate-200'} text-[10px] font-semibold shadow whitespace-nowrap">
+            ${agent.isChief ? '⭐ ' : ''}${escapeHtml(agent.name)}
+          </div>
+        `;
+        layer.appendChild(el);
+      });
+    }
+
+    function showAgentBubble(agentId, text, durationSec = 5) {
+      const obj = agentObjects[agentId];
+      if (!obj) return;
+      obj.bubbleText = text;
+      obj.bubbleTimer = durationSec;
+      const bubbleEl = document.getElementById(`bubble-${agentId}`);
+      if (bubbleEl) {
+        bubbleEl.textContent = text;
+        bubbleEl.classList.remove('hidden');
+      }
+    }
+
+    function triggerRandomAgentBrainSync() {
+      if (!state.agents.length) return;
+      const idx = Math.floor(Math.random() * state.agents.length);
+      const agent = state.agents[idx];
+      const obj = agentObjects[agent.id];
+      if (!obj || obj.isSyncingToBrain) return;
+
+      const syncNotes = [
+        'Saving to 05-Projects...',
+        'Logging to 07-Daily-Logs...',
+        'Updating 10-Office/board.md...',
+        'Checking 03-AI-Office/RULES...',
+        'Syncing $0 launch draft...'
+      ];
+      const note = syncNotes[Math.floor(Math.random() * syncNotes.length)];
+
+      obj.isSyncingToBrain = true;
+      const angle = (idx * 1.3) + 0.4;
+      obj.targetPos = new THREE.Vector3(Math.cos(angle) * 2.0, 0, Math.sin(angle) * 2.0);
+      showAgentBubble(agent.id, note, 6.5);
+
+      // Walk back to assigned station after 4.5 seconds
+      setTimeout(() => {
+        if (!agentObjects[agent.id]) return;
+        agentObjects[agent.id].isSyncingToBrain = false;
+        const freshAgent = state.agents.find(a => a.id === agent.id);
+        if (freshAgent) {
+          agentObjects[agent.id].targetPos = getDestinationCoords(freshAgent, idx);
+        }
+      }, 4500);
+    }
+
+    // Trigger periodic sync every 13 seconds
+    setInterval(triggerRandomAgentBrainSync, 13000);
+
+    function projectToScreen(vec3) {
+      const projected = vec3.clone().project(camera);
+      return {
+        x: (projected.x * 0.5 + 0.5) * window.innerWidth,
+        y: (-(projected.y * 0.5) + 0.5) * window.innerHeight,
+        visible: projected.z < 1
+      };
+    }
+
+    function updateFloatingLabels(dt) {
+      // Brain label
+      const brainEl = document.getElementById('label-brain');
+      if (brainEl && brainOrb) {
+        const pos = projectToScreen(new THREE.Vector3(0, 2.35, 0));
+        brainEl.style.left = `${pos.x}px`;
+        brainEl.style.top = `${pos.y}px`;
+        brainEl.style.opacity = pos.visible ? '1' : '0';
+      }
+
+      // Agents
+      state.agents.forEach(agent => {
+        const obj = agentObjects[agent.id];
+        const el = document.getElementById(`label-agent-${agent.id}`);
+        if (!obj || !el) return;
+
+        if (obj.bubbleTimer > 0) {
+          obj.bubbleTimer -= dt;
+          if (obj.bubbleTimer <= 0) {
+            const bEl = document.getElementById(`bubble-${agent.id}`);
+            if (bEl) bEl.classList.add('hidden');
+          }
+        }
+
+        const headWorld = obj.group.position.clone().add(new THREE.Vector3(0, 1.85, 0));
+        const pos = projectToScreen(headWorld);
+        el.style.left = `${pos.x}px`;
+        el.style.top = `${pos.y}px`;
+        el.style.opacity = pos.visible ? '1' : '0';
+      });
+    }
+
+    // =========================================================================
+    // 4. ANIMATION LOOP & POINTER RAYCASTING
+    // =========================================================================
+    let clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      const elapsed = clock.getElapsedTime();
+
+      // Animate central Brain crystal bobbing & spinning
+      if (brainOrb) {
+        brainOrb.rotation.y += dt * 0.8;
+        brainOrb.position.y = 1.45 + Math.sin(elapsed * 2.2) * 0.12;
+        brainRing1.rotation.z += dt * 0.6;
+        brainRing2.rotation.x -= dt * 0.5;
+      }
+
+      // Animate agents smoothly walking toward targetPos
+      state.agents.forEach(agent => {
+        const obj = agentObjects[agent.id];
+        if (!obj) return;
+
+        const dist = obj.group.position.distanceTo(obj.targetPos);
+        if (dist > 0.05) {
+          const dir = obj.targetPos.clone().sub(obj.group.position).normalize();
+          const step = Math.min(dist, dt * 2.6);
+          obj.group.position.addScaledVector(dir, step);
+
+          // Smoothly turn towards movement direction
+          const targetAngle = Math.atan2(dir.x, dir.z);
+          obj.group.rotation.y = targetAngle;
+
+          // Walking limb swing
+          const swing = Math.sin(elapsed * 12) * 0.45;
+          obj.leftLeg.rotation.x = swing;
+          obj.rightLeg.rotation.x = -swing;
+          obj.leftArm.rotation.x = -swing * 0.7;
+          obj.rightArm.rotation.x = swing * 0.7;
+        } else {
+          // Idle subtle breathing & typing motion at desk
+          obj.leftLeg.rotation.x = 0;
+          obj.rightLeg.rotation.x = 0;
+          if (agent.location === 'desk' && !obj.isSyncingToBrain) {
+            const slot = DESK_SLOTS[agent.deskIndex] || DESK_SLOTS[0];
+            obj.group.rotation.y = slot.rotY;
+            obj.leftArm.rotation.x = -0.55 + Math.sin(elapsed * 8) * 0.08;
+            obj.rightArm.rotation.x = -0.55 + Math.cos(elapsed * 8) * 0.08;
+          } else {
+            obj.leftArm.rotation.x = 0;
+            obj.rightArm.rotation.x = 0;
+          }
+        }
+      });
+
+      controls.update();
+      updateFloatingLabels(dt);
+      renderer.render(scene, camera);
+    }
+
+    function setupPointerInteraction(canvas) {
+      let downX = 0, downY = 0;
+
+      canvas.addEventListener('pointerdown', (e) => {
+        downX = e.clientX;
+        downY = e.clientY;
+      });
+
+      canvas.addEventListener('pointerup', (e) => {
+        const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+        if (moved > 8) return; // Ignore orbit drags
+
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObjects(clickTargets, true);
+        if (hits.length > 0) {
+          let hitObj = hits[0].object;
+          while (hitObj && !hitObj.userData?.type) {
+            hitObj = hitObj.parent;
+          }
+          if (hitObj?.userData?.type === 'brain') {
+            openBrainModal();
+          } else if (hitObj?.userData?.type === 'agent') {
+            openAgentDrawer(hitObj.userData.agentId);
+          }
+        }
+      });
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // =========================================================================
+    // 5. AGENT CUSTOMIZATION DRAWER & MOVEMENT
+    // =========================================================================
+    function openAgentDrawer(agentId) {
+      selectedAgentId = agentId;
+      const agent = state.agents.find(a => a.id === agentId);
+      if (!agent) return;
+
+      // Update selection rings in 3D
+      Object.keys(agentObjects).forEach(id => {
+        agentObjects[id].selectRing.visible = (id === agentId);
+      });
+
+      document.getElementById('drawer-agent-id').textContent = `.claude/agents/${agent.id}.md`;
+      document.getElementById('edit-agent-name').value = agent.name;
+      document.getElementById('edit-agent-role').value = agent.role;
+      document.getElementById('edit-agent-hair').value = agent.appearance.hairStyle;
+      document.getElementById('edit-agent-glasses').textContent = `Glasses: ${agent.appearance.glasses ? 'ON' : 'OFF'}`;
+
+      // Highlight active location button
+      ['desk', 'couch', 'pantry', 'brain'].forEach(loc => {
+        const btn = document.getElementById(`loc-btn-${loc}`);
+        if (btn) {
+          btn.classList.toggle('border-amber-400', agent.location === loc);
+          btn.classList.toggle('bg-amber-500/20', agent.location === loc);
+        }
+      });
+
+      // Populate swap desk dropdown if >= 2 agents
+      const swapWrap = document.getElementById('swap-desk-wrapper');
+      const swapSelect = document.getElementById('swap-desk-select');
+      if (state.agents.length > 1) {
+        swapWrap.classList.remove('hidden');
+        swapSelect.innerHTML = `<option value="">-- Swap Desk #${agent.deskIndex + 1} with... --</option>`;
+        state.agents.forEach(other => {
+          if (other.id !== agent.id) {
+            const opt = document.createElement('option');
+            opt.value = other.id;
+            opt.textContent = `${other.name} (Desk #${other.deskIndex + 1})`;
+            swapSelect.appendChild(opt);
+          }
+        });
+      } else {
+        swapWrap.classList.add('hidden');
+      }
+
+      renderColorSwatches(agent);
+      updateOfficeCliPreview(agent);
+
+      document.getElementById('agent-drawer').classList.remove('translate-x-[120%]');
+    }
+
+    function closeAgentDrawer() {
+      selectedAgentId = null;
+      Object.keys(agentObjects).forEach(id => {
+        agentObjects[id].selectRing.visible = false;
+      });
+      document.getElementById('agent-drawer').classList.add('translate-x-[120%]');
+    }
+
+    function renderColorSwatches(agent) {
+      const shirtContainer = document.getElementById('shirt-swatches');
+      shirtContainer.innerHTML = '';
+      SHIRT_COLORS.forEach(hex => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-6 h-6 rounded-full border-2 ${agent.appearance.shirtColor === hex ? 'border-white scale-110' : 'border-transparent'}`;
+        btn.style.backgroundColor = hex;
+        btn.onclick = () => {
+          agent.appearance.shirtColor = hex;
+          saveState();
+          syncSceneWithState();
+          openAgentDrawer(agent.id);
+        };
+        shirtContainer.appendChild(btn);
+      });
+
+      const hairContainer = document.getElementById('hair-swatches');
+      hairContainer.innerHTML = '';
+      HAIR_COLORS.forEach(hex => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-6 h-6 rounded-full border-2 ${agent.appearance.hairColor === hex ? 'border-white scale-110' : 'border-transparent'}`;
+        btn.style.backgroundColor = hex;
+        btn.onclick = () => {
+          agent.appearance.hairColor = hex;
+          saveState();
+          syncSceneWithState();
+          openAgentDrawer(agent.id);
+        };
+        hairContainer.appendChild(btn);
+      });
+
+      const skinContainer = document.getElementById('skin-swatches');
+      skinContainer.innerHTML = '';
+      SKIN_TONES.forEach(hex => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-6 h-6 rounded-full border-2 ${agent.appearance.skinTone === hex ? 'border-white scale-110' : 'border-transparent'}`;
+        btn.style.backgroundColor = hex;
+        btn.onclick = () => {
+          agent.appearance.skinTone = hex;
+          saveState();
+          syncSceneWithState();
+          openAgentDrawer(agent.id);
+        };
+        skinContainer.appendChild(btn);
+      });
+    }
+
+    function updateSelectedAgent() {
+      const agent = state.agents.find(a => a.id === selectedAgentId);
+      if (!agent) return;
+      agent.name = document.getElementById('edit-agent-name').value.trim() || agent.name;
+      agent.role = document.getElementById('edit-agent-role').value.trim() || agent.role;
+      agent.appearance.hairStyle = document.getElementById('edit-agent-hair').value;
+      if (agent.isChief) state.chiefName = agent.name;
+      saveState();
+      syncSceneWithState();
+      updateOfficeCliPreview(agent);
+    }
+
+    function toggleSelectedGlasses() {
+      const agent = state.agents.find(a => a.id === selectedAgentId);
+      if (!agent) return;
+      agent.appearance.glasses = !agent.appearance.glasses;
+      saveState();
+      syncSceneWithState();
+      openAgentDrawer(agent.id);
+    }
+
+    function randomizeSelectedAppearance() {
+      const agent = state.agents.find(a => a.id === selectedAgentId);
+      if (!agent) return;
+      const styles = ['short', 'bob', 'bun', 'spiky', 'cap'];
+      agent.appearance = {
+        hairStyle: styles[Math.floor(Math.random() * styles.length)],
+        hairColor: HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)],
+        glasses: Math.random() > 0.45,
+        shirtColor: SHIRT_COLORS[Math.floor(Math.random() * SHIRT_COLORS.length)],
+        skinTone: SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)]
+      };
+      saveState();
+      syncSceneWithState();
+      openAgentDrawer(agent.id);
+    }
+
+    function moveSelectedAgentTo(loc) {
+      const idx = state.agents.findIndex(a => a.id === selectedAgentId);
+      if (idx === -1) return;
+      const agent = state.agents[idx];
+      agent.location = loc;
+      saveState();
+
+      if (agentObjects[agent.id]) {
+        agentObjects[agent.id].targetPos = getDestinationCoords(agent, idx);
+        const labels = {
+          desk: 'Back at Desk #' + (agent.deskIndex + 1),
+          couch: 'Brainstorming on Lounge Couch',
+          pantry: 'Grabbing espresso at Pantry',
+          brain: 'Syncing notes with The Brain'
+        };
+        showAgentBubble(agent.id, labels[loc] || 'Moving...', 4);
+      }
+      openAgentDrawer(agent.id);
+    }
+
+    function swapSelectedAgentDesk(otherId) {
+      if (!otherId) return;
+      const a1 = state.agents.find(a => a.id === selectedAgentId);
+      const a2 = state.agents.find(a => a.id === otherId);
+      if (!a1 || !a2) return;
+
+      const tempDesk = a1.deskIndex;
+      a1.deskIndex = a2.deskIndex;
+      a2.deskIndex = tempDesk;
+      a1.location = 'desk';
+      a2.location = 'desk';
+
+      saveState();
+      syncSceneWithState();
+      showAgentBubble(a1.id, `Swapped to Desk #${a1.deskIndex + 1}!`, 4);
+      showAgentBubble(a2.id, `Swapped to Desk #${a2.deskIndex + 1}!`, 4);
+      openAgentDrawer(a1.id);
+    }
+
+    function updateOfficeCliPreview(agent) {
+      const cmd = `/office set ${agent.id} --name "${agent.name}" --desk ${agent.deskIndex + 1} --loc ${agent.location}`;
+      document.getElementById('office-cli-preview').textContent = cmd;
+    }
+
+    function copyOfficeCliCommand() {
+      const txt = document.getElementById('office-cli-preview').textContent.trim();
+      copyTextToClipboard(txt, 'Copied /office command for Claude Code!');
+    }
+
+    function delegateToSelectedAgent() {
+      const agent = state.agents.find(a => a.id === selectedAgentId);
+      if (!agent) return;
+      closeAgentDrawer();
+      executeZeroBudgetTask(agent, `Execute core deliverable for ${state.selectedProduct}`);
+    }
+
+    // =========================================================================
+    // 6. SPAWN NEW AGENT MODAL (+ Spawn Agent)
+    // =========================================================================
+    const CANDIDATE_NAMES = ['Milo', 'Sora', 'Kaito', 'Zoe', 'Aria', 'Leo', 'Tariq', 'Hana', 'Devon', 'Nia'];
+
+    function openSpawnModal() {
+      if (state.agents.length >= 9) {
+        showToast('Office at capacity (9/9 desks). Say "Merge agents" to keep your team lean!', 'amber');
+        return;
+      }
+      document.getElementById('spawn-next-desk').textContent = state.agents.length + 1;
+      document.getElementById('spawn-job-input').value = '';
+      randomizeSpawnCandidate();
+      document.getElementById('spawn-modal').classList.remove('hidden');
+      document.getElementById('spawn-modal').classList.add('flex');
+    }
+
+    function closeSpawnModal() {
+      document.getElementById('spawn-modal').classList.add('hidden');
+      document.getElementById('spawn-modal').classList.remove('flex');
+    }
+
+    function randomizeSpawnCandidate() {
+      const styles = ['short', 'bob', 'bun', 'spiky', 'cap'];
+      const usedNames = new Set(state.agents.map(a => a.name));
+      const available = CANDIDATE_NAMES.filter(n => !usedNames.has(n));
+      const name = available.length > 0
+        ? available[Math.floor(Math.random() * available.length)]
+        : `Agent-${state.agents.length + 1}`;
+
+      spawnCandidate = {
+        name,
+        appearance: {
+          hairStyle: styles[Math.floor(Math.random() * styles.length)],
+          hairColor: HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)],
+          glasses: Math.random() > 0.5,
+          shirtColor: SHIRT_COLORS[Math.floor(Math.random() * SHIRT_COLORS.length)],
+          skinTone: SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)]
+        }
+      };
+
+      document.getElementById('spawn-preview-name').textContent = spawnCandidate.name;
+      document.getElementById('spawn-avatar-badge').style.backgroundColor = spawnCandidate.appearance.shirtColor;
+      document.getElementById('spawn-preview-traits').textContent =
+        `${spawnCandidate.appearance.hairStyle} • ${spawnCandidate.appearance.glasses ? 'Glasses' : 'No Glasses'}`;
+      updateSpawnCliPreview();
+    }
+
+    function setSpawnJob(jobTitle) {
+      document.getElementById('spawn-job-input').value = jobTitle;
+      updateSpawnCliPreview();
+    }
+
+    document.getElementById('spawn-job-input').addEventListener('input', updateSpawnCliPreview);
+
+    function updateSpawnCliPreview() {
+      const job = document.getElementById('spawn-job-input').value.trim() || 'Digital Product Specialist';
+      const name = spawnCandidate ? spawnCandidate.name : 'Milo';
+      document.getElementById('spawn-cli-command').textContent = `/new-agent ${name} — ${job}`;
+    }
+
+    function copySpawnCliCommand() {
+      const cmd = document.getElementById('spawn-cli-command').textContent.trim();
+      copyTextToClipboard(cmd, 'Copied /new-agent command!');
+    }
+
+    function confirmSpawnAgent() {
+      if (state.agents.length >= 9) return;
+      const job = document.getElementById('spawn-job-input').value.trim() || 'Digital Product Specialist';
+      const slug = spawnCandidate.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + (state.agents.length + 1);
+
+      const newAgent = {
+        id: slug,
+        name: spawnCandidate.name,
+        role: job,
+        isChief: false,
+        deskIndex: state.agents.length,
+        location: 'desk',
+        appearance: spawnCandidate.appearance
+      };
+
+      state.agents.push(newAgent);
+      appendBrainNote('10-Office/board.md', `\n- [Hired] **${newAgent.name}** joined Desk #${newAgent.deskIndex + 1} as *${newAgent.role}*.`);
+      saveState();
+      syncSceneWithState();
+      closeSpawnModal();
+
+      showAgentBubble(newAgent.id, `Reporting for duty: ${newAgent.role}!`, 5);
+      setChiefMessage(`${newAgent.name} joined Desk #${newAgent.deskIndex + 1} (${newAgent.role}). Zero overhead maintained.`);
+    }
+
+    // =========================================================================
+    // 7. /SETUP 3-STEP ONBOARDING WIZARD
+    // =========================================================================
+    function openSetupModal() {
+      setupStep = 1;
+      document.getElementById('setup-office-input').value = state.officeName;
+      document.getElementById('setup-chief-input').value = state.chiefName;
+      renderSetupStep();
+      document.getElementById('setup-modal').classList.remove('hidden');
+      document.getElementById('setup-modal').classList.add('flex');
+    }
+
+    function closeSetupModal() {
+      document.getElementById('setup-modal').classList.add('hidden');
+      document.getElementById('setup-modal').classList.remove('flex');
+    }
+
+    function renderSetupStep() {
+      [1, 2, 3].forEach(n => {
+        document.getElementById(`setup-step-${n}`).classList.toggle('hidden', n !== setupStep);
+        const pill = document.getElementById(`setup-step-pill-${n}`);
+        if (n === setupStep) {
+          pill.className = 'py-1.5 rounded-xl bg-amber-500 text-slate-950';
+        } else if (n < setupStep) {
+          pill.className = 'py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        } else {
+          pill.className = 'py-1.5 rounded-xl bg-slate-800 text-slate-400';
+        }
+      });
+
+      document.getElementById('setup-prev-btn').classList.toggle('hidden', setupStep === 1);
+      document.getElementById('setup-next-btn').classList.toggle('hidden', setupStep === 3);
+      document.getElementById('setup-finish-btn').classList.toggle('hidden', setupStep !== 3);
+    }
+
+    function nextSetupStep() {
+      if (setupStep < 3) {
+        setupStep++;
+        renderSetupStep();
+      }
+    }
+
+    function prevSetupStep() {
+      if (setupStep > 1) {
+        setupStep--;
+        renderSetupStep();
+      }
+    }
+
+    function finishSetupWizard() {
+      const officeName = document.getElementById('setup-office-input').value.trim() || 'O2San Digital Studio';
+      const chiefName = document.getElementById('setup-chief-input').value.trim() || 'Nova';
+      const chosenRadio = document.querySelector('input[name="zero-product"]:checked');
+      const product = chosenRadio ? chosenRadio.value : 'Printable Kids Activity & Coloring Pack ($9)';
+
+      state.officeName = officeName;
+      state.chiefName = chiefName;
+      state.selectedProduct = product;
+
+      const chief = state.agents.find(a => a.isChief);
+      if (chief) chief.name = chiefName;
+
+      // Write directly into the Numbered Brain files
+      state.brainFiles['00-Core/about-me.md'] =
+        `# About Me & My Digital Studio\n\n- **Office Name:** ${officeName}\n- **Chief of Staff:** ${chiefName}\n- **Operating Budget:** $0.00 (Zero-Overhead Digital Model)\n- **Flagship Offer:** ${product}\n`;
+
+      state.brainFiles['05-Projects/first-product.md'] =
+        `# Project 01: ${product}\n\n## Zero-Budget Launch Blueprint\n- [x] Office & Chief (${chiefName}) initialized via /setup\n- [ ] Draft product asset & 3-page free teaser sample\n- [ ] Publish zero-fee storefront page (Gumroad / LemonSqueezy)\n- [ ] Share 3 organic value posts (Zero ad spend)\n`;
+
+      saveState();
+      syncSceneWithState();
+      closeSetupModal();
+
+      if (chief) showAgentBubble(chief.id, `Saved ${officeName} to 00-Core!`, 5);
+      setChiefMessage(`/setup complete! ${chiefName} saved "${product}" into 05-Projects/first-product.md.`);
+    }
+
+    // =========================================================================
+    // 8. NUMBERED BRAIN VAULT (00-Core to 10-Office)
+    // =========================================================================
+    function openBrainModal(fileKey = null) {
+      if (fileKey && state.brainFiles[fileKey] !== undefined) {
+        state.activeBrainFile = fileKey;
+      }
+      renderBrainSidebar();
+      loadActiveBrainEditor();
+      document.getElementById('brain-modal').classList.remove('hidden');
+      document.getElementById('brain-modal').classList.add('flex');
+    }
+
+    function closeBrainModal() {
+      document.getElementById('brain-modal').classList.add('hidden');
+      document.getElementById('brain-modal').classList.remove('flex');
+    }
+
+    function renderBrainSidebar() {
+      const list = document.getElementById('brain-file-list');
+      list.innerHTML = '';
+      Object.keys(state.brainFiles).sort().forEach(path => {
+        const isActive = path === state.activeBrainFile;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-full text-left px-3 py-2 rounded-xl font-mono text-xs flex items-center gap-2 transition ${
+          isActive
+            ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 font-semibold'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
+        }`;
+        btn.innerHTML = `<span>📄</span><span class="truncate">${escapeHtml(path)}</span>`;
+        btn.onclick = () => {
+          state.activeBrainFile = path;
+          renderBrainSidebar();
+          loadActiveBrainEditor();
+        };
+        list.appendChild(btn);
+      });
+    }
+
+    function loadActiveBrainEditor() {
+      const path = state.activeBrainFile;
+      document.getElementById('brain-active-filepath').textContent = `brain/${path}`;
+      document.getElementById('brain-editor-textarea').value = state.brainFiles[path] || '';
+    }
+
+    function handleBrainNoteEdit(val) {
+      state.brainFiles[state.activeBrainFile] = val;
+      const ind = document.getElementById('brain-save-indicator');
+      ind.textContent = 'Saving...';
+      saveState();
+      setTimeout(() => { ind.textContent = '✓ Saved'; }, 300);
+    }
+
+    function appendBrainNote(path, textToAppend) {
+      if (!state.brainFiles[path]) state.brainFiles[path] = '';
+      state.brainFiles[path] += textToAppend;
+      saveState();
+    }
+
+    function downloadBrainJson() {
+      const payload = {
+        officeName: state.officeName,
+        chiefName: state.chiefName,
+        revenue: state.revenue,
+        agents: state.agents,
+        brain: state.brainFiles
+      };
+      triggerFileDownload('my-ai-office-brain.json', JSON.stringify(payload, null, 2), 'application/json');
+      showToast('Downloaded my-ai-office-brain.json!', 'cyan');
+    }
+
+    function downloadBrainMarkdownBundle() {
+      let md = `# ${state.officeName} — Full Brain Export\nChief of Staff: ${state.chiefName}\n\n---\n\n`;
+      Object.keys(state.brainFiles).sort().forEach(path => {
+        md += `## File: \`brain/${path}\`\n\n${state.brainFiles[path].trim()}\n\n---\n\n`;
+      });
+      triggerFileDownload('my-ai-office-brain-vault.md', md, 'text/markdown');
+      showToast('Downloaded GitHub-ready Markdown bundle!', 'cyan');
+    }
+
+    function triggerFileDownload(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // =========================================================================
+    // 9. COMMAND BAR, SLASH COMMANDS & GUARD SAFETY EXECUTION
+    // =========================================================================
+    function handleCommandSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('command-input');
+      const raw = input.value.trim();
+      if (!raw) return;
+      input.value = '';
+      runCommand(raw);
+    }
+
+    function runCommand(raw) {
+      const lower = raw.toLowerCase();
+
+      if (lower === '/setup') {
+        openSetupModal();
+        return;
+      }
+
+      if (lower === '/new-agent' || lower.startsWith('/new-agent ')) {
+        openSpawnModal();
+        const rest = raw.slice('/new-agent'.length).trim();
+        if (rest) {
+          setSpawnJob(rest.replace(/^—\s*/, ''));
+        }
+        return;
+      }
+
+      if (lower.startsWith('/teach ')) {
+        const rule = raw.slice(7).trim();
+        if (rule) {
+          appendBrainNote('03-AI-Office/RULES.md', `\n- **Learned Rule:** ${rule}`);
+          const chief = state.agents.find(a => a.isChief);
+          if (chief) showAgentBubble(chief.id, 'Saved rule to 03-AI-Office/RULES.md!', 4.5);
+          setChiefMessage(`Rule saved permanently to 03-AI-Office/RULES.md: "${rule}"`);
+          showToast('Rule added to 03-AI-Office/RULES.md', 'emerald');
+        }
+        return;
+      }
+
+      if (lower === '/tidy') {
+        // Deduplicate lines in RULES.md
+        const lines = (state.brainFiles['03-AI-Office/RULES.md'] || '').split('\n');
+        const unique = [...new Set(lines)];
+        state.brainFiles['03-AI-Office/RULES.md'] = unique.join('\n');
+        saveState();
+        setChiefMessage('Brain tidied: duplicate rules merged in 03-AI-Office/RULES.md.');
+        showToast('Brain rules tidied & deduplicated!', 'cyan');
+        return;
+      }
+
+      if (lower === 'status' || lower === '/status') {
+        setChiefMessage(
+          `Status: ${state.agents.length}/9 desks active | Offer: ${state.selectedProduct} | Revenue: $${state.revenue} | Guard: Active.`
+        );
+        return;
+      }
+
+      // Otherwise: Plain-text task delegation to Chief of Staff (or matching specialist)
+      const chief = state.agents.find(a => a.isChief) || state.agents[0];
+      executeZeroBudgetTask(chief, raw);
+    }
+
+    function executeZeroBudgetTask(agent, taskText) {
+      showAgentBubble(agent.id, `Working: ${taskText.slice(0, 28)}...`, 5);
+      setChiefMessage(`${agent.name} (${agent.role}) drafted deliverable for "${taskText}". Guard Gate triggered before publishing.`);
+
+      // Log work into 07-Daily-Logs/today.md
+      appendBrainNote('07-Daily-Logs/today.md', `\n- **[${agent.name}]** Prepared draft for: *${taskText}*`);
+
+      // Trigger Guard Safety Approval Gate for external publish / revenue simulation
+      openGuardApproval(
+        `${agent.name} finished drafting "${taskText}" for your $0 offer (${state.selectedProduct}). Approve publishing to your storefront and logging initial digital sale?`,
+        () => {
+          const saleBump = state.selectedProduct.includes('$149') ? 149 : (state.selectedProduct.includes('$19') ? 19 : 9);
+          state.revenue += saleBump;
+          appendBrainNote('10-Office/board.md', `\n- [Done] Published "${taskText}" → Earned **+$${saleBump}** ($0 ad spend)!`);
+          saveState();
+          showAgentBubble(agent.id, `Published! +$${saleBump} earned 🎉`, 5.5);
+          setChiefMessage(`Approved! "${taskText}" is live and generated +$${saleBump} (Total: $${state.revenue}).`);
+          showToast(`Guard Approved! +$${saleBump} digital revenue logged.`, 'emerald');
+        }
+      );
+    }
+
+    function openGuardModal() {
+      const box = document.getElementById('guard-pending-box');
+      if (pendingGuardCallback) {
+        box.classList.remove('hidden');
+        document.getElementById('guard-pending-desc').textContent = pendingGuardDescription;
+      } else {
+        box.classList.add('hidden');
+      }
+      document.getElementById('guard-modal').classList.remove('hidden');
+      document.getElementById('guard-modal').classList.add('flex');
+    }
+
+    function openGuardApproval(description, onApprove) {
+      pendingGuardDescription = description;
+      pendingGuardCallback = onApprove;
+      openGuardModal();
+    }
+
+    function approveGuardAction() {
+      const cb = pendingGuardCallback;
+      pendingGuardCallback = null;
+      pendingGuardDescription = '';
+      closeGuardModal();
+      if (cb) cb();
+    }
+
+    function rejectGuardAction() {
+      pendingGuardCallback = null;
+      pendingGuardDescription = '';
+      closeGuardModal();
+      setChiefMessage('Guard blocked external action. Draft remains safely in local Brain.');
+      showToast('External action blocked by Guard.', 'amber');
+    }
+
+    function closeGuardModal() {
+      document.getElementById('guard-modal').classList.add('hidden');
+      document.getElementById('guard-modal').classList.remove('flex');
+    }
+
+    // =========================================================================
+    // 10. UI HELPERS (HUD, TOASTS, CLIPBOARD)
+    // =========================================================================
+    function updateHud() {
+      document.getElementById('hud-office-name').textContent = state.officeName;
+      document.getElementById('hud-chief-name').textContent = state.chiefName;
+      document.getElementById('hud-agent-count').textContent = state.agents.length;
+      document.getElementById('hud-revenue').textContent = `$${state.revenue} Earned`;
+    }
+
+    function setChiefMessage(msg) {
+      document.getElementById('chief-status-text').textContent = msg;
+    }
+
+    function showToast(message, tone = 'amber') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const borderMap = {
+        amber: 'border-amber-500/50 text-amber-200',
+        emerald: 'border-emerald-500/50 text-emerald-200',
+        cyan: 'border-cyan-500/50 text-cyan-200'
+      };
+      toast.className = `pointer-events-auto bg-slate-900/95 backdrop-blur-md border ${borderMap[tone] || borderMap.amber} rounded-xl px-3.5 py-2.5 text-xs font-medium shadow-xl transition-opacity duration-300`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3400);
+    }
+
+    function copyTextToClipboard(text, successMsg) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMsg, 'cyan');
+      } catch (e) {
+        showToast('Unable to copy automatically.', 'amber');
+      }
+      document.body.removeChild(ta);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // =========================================================================
+    // 11. BOOTSTRAP ON WINDOW LOAD
+    // =========================================================================
+    window.onload = function () {
+      updateHud();
+      initThreeOffice();
+      animate();
+    };
+  </script>
+</body>
+</html>
