@@ -2,9 +2,7 @@ name: Daily AI Office Research & Board Sync
 
 on:
   schedule:
-    # Runs automatically every day at 09:00 KST (00:00 UTC)
     - cron: '0 0 * * *'
-  # Also lets you trigger a manual run anytime from the Actions tab
   workflow_dispatch:
 
 permissions:
@@ -17,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate Daily Research & Office Board Update
+      - name: Inspect Gumroad Products & Generate Daily Report
         run: |
           python3 - << 'EOF'
           import json
@@ -30,6 +28,60 @@ jobs:
           timestamp = now.strftime("%Y-%m-%d %H:%M KST")
           day_index = now.timetuple().tm_yday
 
+          # 1. Load live products from products.json if present
+          products = []
+          if os.path.exists("products.json"):
+              with open("products.json", "r", encoding="utf-8") as f:
+                  pdata = json.load(f)
+                  products = pdata.get("products", [])
+
+          audits = []
+          for p in products:
+              name = p.get("name", "Untitled Product").strip()
+              url = p.get("url", "").strip()
+              price = float(p.get("price_usd", 0) or 0)
+              hook = p.get("hook", "").strip()
+              buyer = p.get("target_buyer", "").strip()
+
+              strengths = []
+              gaps = []
+
+              if len(name) >= 20:
+                  strengths.append("Clear descriptive product title")
+              else:
+                  gaps.append("Title is short; add outcome + format keywords for search")
+
+              if price >= 5:
+                  strengths.append(f"${price:g} price point fits low-friction impulse digital tools")
+              else:
+                  gaps.append("Price is under $5; consider testing $7-$12 value tier")
+
+              if len(hook) >= 35:
+                  strengths.append("Hook states a concrete benefit")
+              else:
+                  gaps.append("Hook needs a stronger before/after pain-to-outcome statement")
+
+              if url.startswith("http") and "your-product-slug" not in url:
+                  strengths.append("Live Gumroad URL configured")
+              else:
+                  gaps.append("Replace placeholder Gumroad URL in products.json with real link")
+
+              if buyer:
+                  strengths.append(f"Target buyer defined ({buyer})")
+              else:
+                  gaps.append("Specify exact target buyer persona")
+
+              score = max(40, min(100, 100 - len(gaps) * 15))
+              audits.append({
+                  "product_name": name,
+                  "url": url,
+                  "audit_score": score,
+                  "strengths": strengths,
+                  "gaps_to_improve": gaps,
+                  "next_test": f"Test 2 variations of '{name}' hook on Pinterest/Shorts and track click-throughs."
+              })
+
+          # 2. Rotate daily scout idea
           research_topics = [
               {
                   "niche": "Freelance & Creator Calculators",
@@ -62,24 +114,33 @@ jobs:
                   "channel": "Gumroad ($9) + Local Outreach"
               }
           ]
-
           pick = research_topics[day_index % len(research_topics)]
 
+          # 3. Update brain-feed.json
           feed_file = "brain-feed.json"
           if os.path.exists(feed_file):
               with open(feed_file, "r", encoding="utf-8") as f:
                   data = json.load(f)
           else:
-              data = {"logs": [], "completed_days": 0}
+              data = {"logs": []}
+
+          primary_audit = audits[0] if audits else {
+              "product_name": "No product in products.json yet",
+              "audit_score": 0,
+              "strengths": [],
+              "gaps_to_improve": ["Add your live Gumroad item to products.json"],
+              "next_test": "Add your Gumroad product entry to products.json and re-run sync."
+          }
 
           entry = {
               "date": today_str,
               "updated_at": timestamp,
               "scout_research": pick,
-              "chief_action_item": f"Build & list '{pick['idea']}' on {pick['channel']}."
+              "product_audit": primary_audit,
+              "all_product_audits": audits,
+              "chief_action_item": primary_audit["next_test"]
           }
 
-          # Avoid duplicate entry for the same date
           data["logs"] = [l for l in data.get("logs", []) if l.get("date") != today_str]
           data["logs"].insert(0, entry)
           data["logs"] = data["logs"][:30]
@@ -88,10 +149,10 @@ jobs:
           with open(feed_file, "w", encoding="utf-8") as f:
               json.dump(data, f, indent=2, ensure_ascii=False)
 
-          # Also append to a human-readable Markdown log in the repo
+          # 4. Append human-readable Markdown log
           os.makedirs("brain-logs", exist_ok=True)
           md_path = "brain-logs/daily-research.md"
-          header = "# Automated Daily Scout Research & Office Log\n\n"
+          header = "# Automated Daily Scout Research & Product Audit Log\n\n"
           if not os.path.exists(md_path):
               with open(md_path, "w", encoding="utf-8") as f:
                   f.write(header)
@@ -100,12 +161,13 @@ jobs:
               existing_md = f.read()
 
           if f"## {today_str}" not in existing_md:
+              audit_lines = "\n".join([f"  - {g}" for g in primary_audit.get("gaps_to_improve", [])]) or "  - None detected"
               new_block = (
                   f"## {today_str} (Synced {timestamp})\n"
-                  f"- **Scout Niche:** {pick['niche']}\n"
-                  f"- **Product Idea:** {pick['idea']}\n"
-                  f"- **Marketing Hook:** \"{pick['hook']}\"\n"
-                  f"- **Target Channel:** {pick['channel']}\n\n"
+                  f"- **Product Inspected:** {primary_audit['product_name']} (Score: {primary_audit['audit_score']}/100)\n"
+                  f"- **Gaps Found:**\n{audit_lines}\n"
+                  f"- **Scout Niche:** {pick['niche']} — {pick['idea']}\n"
+                  f"- **Marketing Hook:** \"{pick['hook']}\"\n\n"
               )
               updated_md = existing_md.replace(header, header + new_block, 1)
               with open(md_path, "w", encoding="utf-8") as f:
@@ -117,4 +179,4 @@ jobs:
           git config user.name "AI-Office-Chief"
           git config user.email "ai-office-bot@users.noreply.github.com"
           git add brain-feed.json brain-logs/daily-research.md
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(brain): automated daily research sync" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(brain): product audit and daily research sync" && git push)
