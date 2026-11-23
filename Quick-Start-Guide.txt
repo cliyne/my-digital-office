@@ -1,0 +1,7 @@
+THANK YOU FOR DOWNLOADING THE FREELANCE PROJECT QUOTE & PROFIT CALCULATOR!
+
+HOW TO USE (30 SECONDS):
+1. Double-click "quote-calculator.html" to open it in any web browser (Chrome, Edge, Safari, or mobile). No internet connection or software install is required.
+2. Enter your preferred Currency, Hourly Rate, Buffer %, and Tax/Fee Reserve %.
+3. Click "Save My Rates" in the top-right corner so your defaults load automatically next time.
+4. For any new client inquiry, enter the estimated hours and scope notes, then click "Copy Client-Ready Quote" to paste directly into an email/DM, or click "Print / Save PDF" to send a clean PDF estimate.
