@@ -1,0 +1,120 @@
+name: Daily AI Office Research & Board Sync
+
+on:
+  schedule:
+    # Runs automatically every day at 09:00 KST (00:00 UTC)
+    - cron: '0 0 * * *'
+  # Also lets you trigger a manual run anytime from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  daily-office-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Daily Research & Office Board Update
+        run: |
+          python3 - << 'EOF'
+          import json
+          import os
+          from datetime import datetime, timezone, timedelta
+
+          kst = timezone(timedelta(hours=9))
+          now = datetime.now(kst)
+          today_str = now.strftime("%Y-%m-%d")
+          timestamp = now.strftime("%Y-%m-%d %H:%M KST")
+          day_index = now.timetuple().tm_yday
+
+          research_topics = [
+              {
+                  "niche": "Freelance & Creator Calculators",
+                  "idea": "YouTube Sponsorship & AdSense Rate Calculator (Single-file HTML)",
+                  "hook": "Creators undercharge brand deals by 40%. Use this 30-second rate calculator before replying to sponsors.",
+                  "channel": "Gumroad ($9) + Pinterest / Shorts"
+              },
+              {
+                  "niche": "Minimalist Printable Activity Packs",
+                  "idea": "Screen-Free Rainy Day Scavenger Hunt & Coloring Sheets (PDF)",
+                  "hook": "Clean, low-ink printable pages with wide margins so markers never bleed through.",
+                  "channel": "Amazon KDP / Payhip ($7)"
+              },
+              {
+                  "niche": "Productized Micro-Services",
+                  "idea": "24-Hour One-Page Link-in-Bio & Lead Capture Site Setup",
+                  "hook": "Replace $15/mo Linktree subscriptions with a custom, fast-loading personal hub hosted free forever.",
+                  "channel": "Fiverr / PeoplePerHour ($50)"
+              },
+              {
+                  "niche": "Personal Finance & Habit Trackers",
+                  "idea": "Zero-Based Paycheck & No-Spend Challenge Tracker (HTML / Sheet)",
+                  "hook": "Visual 30-day savings grid that works offline on mobile and desktop.",
+                  "channel": "Gumroad / Payhip ($7)"
+              },
+              {
+                  "niche": "Small Business Utilities",
+                  "idea": "Instant QR Code & Wi-Fi Sign Generator for Cafes & Studios",
+                  "hook": "Print a clean branded Wi-Fi card in 10 seconds with zero subscription fees.",
+                  "channel": "Gumroad ($9) + Local Outreach"
+              }
+          ]
+
+          pick = research_topics[day_index % len(research_topics)]
+
+          feed_file = "brain-feed.json"
+          if os.path.exists(feed_file):
+              with open(feed_file, "r", encoding="utf-8") as f:
+                  data = json.load(f)
+          else:
+              data = {"logs": [], "completed_days": 0}
+
+          entry = {
+              "date": today_str,
+              "updated_at": timestamp,
+              "scout_research": pick,
+              "chief_action_item": f"Build & list '{pick['idea']}' on {pick['channel']}."
+          }
+
+          # Avoid duplicate entry for the same date
+          data["logs"] = [l for l in data.get("logs", []) if l.get("date") != today_str]
+          data["logs"].insert(0, entry)
+          data["logs"] = data["logs"][:30]
+          data["last_sync"] = timestamp
+
+          with open(feed_file, "w", encoding="utf-8") as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+
+          # Also append to a human-readable Markdown log in the repo
+          os.makedirs("brain-logs", exist_ok=True)
+          md_path = "brain-logs/daily-research.md"
+          header = "# Automated Daily Scout Research & Office Log\n\n"
+          if not os.path.exists(md_path):
+              with open(md_path, "w", encoding="utf-8") as f:
+                  f.write(header)
+
+          with open(md_path, "r", encoding="utf-8") as f:
+              existing_md = f.read()
+
+          if f"## {today_str}" not in existing_md:
+              new_block = (
+                  f"## {today_str} (Synced {timestamp})\n"
+                  f"- **Scout Niche:** {pick['niche']}\n"
+                  f"- **Product Idea:** {pick['idea']}\n"
+                  f"- **Marketing Hook:** \"{pick['hook']}\"\n"
+                  f"- **Target Channel:** {pick['channel']}\n\n"
+              )
+              updated_md = existing_md.replace(header, header + new_block, 1)
+              with open(md_path, "w", encoding="utf-8") as f:
+                  f.write(updated_md)
+          EOF
+
+      - name: Commit and push updated Brain files
+        run: |
+          git config user.name "AI-Office-Chief"
+          git config user.email "ai-office-bot@users.noreply.github.com"
+          git add brain-feed.json brain-logs/daily-research.md
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(brain): automated daily research sync" && git push)
