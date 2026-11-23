@@ -25,7 +25,7 @@
       touch-action: none;
     }
     .glass-panel {
-      background: rgba(15, 23, 42, 0.86);
+      background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid rgba(148, 163, 184, 0.2);
@@ -62,15 +62,18 @@
     </div>
 
     <div class="flex items-center gap-2 pointer-events-auto flex-wrap">
+      <button onclick="openBriefingModal(true)" class="glass-panel hover:bg-emerald-500/20 border-emerald-400/40 text-emerald-200 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+        <span>📋 Daily Briefing</span>
+      </button>
       <button onclick="openSpawnModal()" class="glass-panel hover:bg-sky-500/20 border-sky-400/40 text-sky-200 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
         <span>+ Spawn Agent</span>
       </button>
       <button onclick="openBrainModal('00-Core/about-me.md')" class="glass-panel hover:bg-indigo-500/20 border-indigo-400/40 text-indigo-200 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition brain-glow">
         <span>🧠 Brain Vault</span>
       </button>
-      <button onclick="triggerBrainSync()" class="glass-panel hover:bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs font-medium transition" title="Send an agent to sync memory at the Brain">
-        🔄 Sync Brain
-      </button>
+      <a href="store.html" class="glass-panel hover:bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs font-medium transition">
+        🛍️ My Shop
+      </a>
     </div>
   </header>
 
@@ -93,13 +96,11 @@
         <button onclick="closeInspector()" class="text-slate-400 hover:text-white text-lg leading-none px-1">&times;</button>
       </div>
 
-      <!-- One Job Brief -->
       <div class="mb-3">
         <label class="block text-[11px] font-semibold text-slate-300 mb-1">One Job / Responsibility</label>
         <textarea id="insp-job" rows="2" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg p-2 text-xs text-slate-100 focus:outline-none focus:border-sky-400"></textarea>
       </div>
 
-      <!-- Move Location in Office -->
       <div class="mb-3">
         <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Move Agent Location</label>
         <div class="grid grid-cols-3 gap-1.5 text-[11px]">
@@ -109,7 +110,6 @@
         </div>
       </div>
 
-      <!-- Customize Appearance -->
       <div class="border-t border-slate-700/70 pt-3 space-y-2.5">
         <div class="flex items-center justify-between">
           <span class="text-xs font-semibold text-slate-200">✏️ Customize Look</span>
@@ -185,6 +185,33 @@
       </div>
     </div>
   </footer>
+
+  <!-- MODAL 0: Automatic Team Login Briefing -->
+  <div id="briefing-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="glass-panel rounded-2xl max-w-lg w-full p-5 border border-emerald-500/40">
+      <div class="flex items-start justify-between border-b border-slate-800 pb-3 mb-3">
+        <div>
+          <span class="text-[10px] font-mono uppercase text-emerald-400">LIVE TEAM STANDUP • AUTO-SYNCED</span>
+          <h2 id="brief-title" class="text-lg font-bold text-white mt-0.5">Daily Office Briefing</h2>
+          <p id="brief-timestamp" class="text-[11px] text-slate-400">Checking latest Brain sync...</p>
+        </div>
+        <button onclick="closeModal('briefing-modal')" class="text-slate-400 hover:text-white text-xl">&times;</button>
+      </div>
+
+      <div id="brief-body" class="space-y-3 text-xs max-h-[55vh] overflow-y-auto custom-scroll pr-1">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div class="flex flex-wrap justify-between items-center gap-2 mt-4 pt-3 border-t border-slate-800">
+        <button onclick="closeModal('briefing-modal')" class="px-3.5 py-2 rounded-lg text-xs text-slate-300 hover:bg-slate-800">
+          Dismiss
+        </button>
+        <button onclick="acceptBriefingIntoBoard()" class="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 transition">
+          ✅ Accept & Save to Brain Vault
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL 1: /setup Wizard -->
   <div id="setup-modal" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4">
@@ -319,12 +346,14 @@
 
 <script>
   const STORAGE_KEY = 'my_ai_office_v1';
+  const LAST_BRIEF_KEY = 'my_ai_office_last_brief_date';
 
   const DEFAULT_BRAIN = {
     '00-Core/about-me.md': `# About My Digital Office\n- **Office Name:** Zero-Budget Digital Studio\n- **Chief of Staff:** Aria\n- **Operating Constraint:** $0 upfront budget (GitHub + Cloudflare Pages + Gumroad/KDP)\n- **Working Style:** One agent, one job. Plain words. Always verify before publishing.`,
     '01-Business/digital-studio.md': `# Zero-Budget Business Model\n## Primary Revenue Engine\n- **Product Type:** Micro-Calculator & Web Templates (Gumroad / Cloudflare)\n- **Pricing:** $7–$19 digital downloads | $50+ productized setups\n- **Distribution:** Free organic traffic (Pinterest, YouTube Shorts, Freelance Marketplaces)\n\n## Free Infrastructure Stack\n- Hosting: GitHub + Cloudflare Pages ($0/mo)\n- Storefront: Gumroad / Payhip (0% upfront)\n- Database: Supabase Free Tier`,
     '03-AI-Office/RULES.md': `# Office Safety & Quality Rules\n- **Level A (Guard Hook):** Never publish, send emails, or spend money without explicit approval.\n- **Level B (Clean Output):** Keep digital products lightweight, mobile-friendly, and free of paid API dependencies.\n- **Level C (Memory):** Log every finished asset in 05-Projects/ and update 10-Office/board.md.`,
-    '05-Projects/first-product.md': `# Project 01: Freelance Project Quote Calculator\n- **Status:** Ready to Build\n- **Assigned To:** Chief of Staff (Aria)\n- **Deliverable:** Single-file HTML calculator (calculator.html) that computes hourly + project rates with PDF print export.\n- **Next Step:** Generate HTML -> Test on mobile -> List on Gumroad for $9.`,
+    '05-Projects/first-product.md': `# Project 01: Freelance Project Quote Calculator\n- **Status:** Ready to Build\n- **Assigned To:** Chief of Staff (Aria)\n- **Deliverable:** Single-file HTML calculator (quote-calculator.html) that computes hourly + project rates with PDF print export.\n- **Next Step:** Generate HTML -> Test on mobile -> List on Gumroad for $9.`,
+    '06-Research/scout-feed.md': `# Scout Research & Market Angles\n- Daily automated ideas from GitHub Actions sync here.`,
     '07-Daily-Logs/today.md': `# Daily Studio Log\n- Initialized 3D Digital Office workspace.\n- Set $0-overhead digital product rules in Brain Vault.\n- Ready to spawn specialist agents and ship Project 01.`,
     '10-Office/board.md': `# Live Office Task Board\n- [x] Setup 3D Digital Office & Brain Vault\n- [ ] Build Project 01: Freelance Quote Calculator (HTML)\n- [ ] Write Gumroad sales copy & 5 feature bullets\n- [ ] Publish first product link & share 3 promotional hooks`
   };
@@ -333,11 +362,16 @@
   let selectedAgentId = null;
   let activeBrainFile = '00-Core/about-me.md';
   let pendingGuardCallback = null;
+  let latestBriefingData = null;
 
   function loadState() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        parsed.brain = { ...DEFAULT_BRAIN, ...(parsed.brain || {}) };
+        return parsed;
+      }
     } catch (e) {}
     return {
       officeName: 'Zero-Budget Digital Studio',
@@ -388,14 +422,120 @@
   }
 
   // ==========================================
-  // 2. THREE.JS 3D ISOMETRIC OFFICE + BUILT-IN CAMERA
+  // AUTOMATIC LOGIN BRIEFING ENGINE
+  // ==========================================
+  async function checkAutoLoginBriefing() {
+    const today = new Date().toISOString().slice(0, 10);
+    let feed = null;
+
+    try {
+      const res = await fetch('brain-feed.json?t=' + Date.now());
+      if (res.ok) {
+        feed = await res.json();
+      }
+    } catch (e) {}
+
+    // Fallback briefing if GitHub Action hasn't run yet
+    if (!feed || !feed.logs || !feed.logs.length) {
+      feed = {
+        last_sync: 'Live Local Session',
+        logs: [
+          {
+            date: today,
+            updated_at: 'Ready Now',
+            scout_research: {
+              niche: state.niche,
+              idea: 'Freelance Project Quote & Profit Calculator (Single-file HTML)',
+              hook: 'Stop guessing project rates or losing profit to surprise revisions—calculate clean quotes in 60 seconds.',
+              channel: 'Gumroad ($9) + Your Storefront (store.html)'
+            },
+            chief_action_item: 'Upload quote-calculator.html to Gumroad and link your shop URL on store.html.'
+          }
+        ]
+      };
+    }
+
+    latestBriefingData = feed;
+    const latestEntry = feed.logs[0];
+    const lastSeenDate = localStorage.getItem(LAST_BRIEF_KEY);
+
+    // Automatically open briefing on first visit today, and send Chief to Brain
+    if (lastSeenDate !== latestEntry.date) {
+      localStorage.setItem(LAST_BRIEF_KEY, latestEntry.date);
+      triggerBrainSync();
+      setTimeout(() => openBriefingModal(false), 900);
+    }
+  }
+
+  function openBriefingModal(isManual) {
+    if (!latestBriefingData || !latestBriefingData.logs || !latestBriefingData.logs.length) {
+      checkAutoLoginBriefing();
+      return;
+    }
+
+    const latest = latestBriefingData.logs[0];
+    const openTasks = (state.brain['10-Office/board.md'] || '')
+      .split('\n')
+      .filter(line => line.trim().startsWith('- [ ]'));
+
+    document.getElementById('brief-title').textContent = `${state.chiefName}'s Morning Standup Briefing`;
+    document.getElementById('brief-timestamp').textContent = `Last Brain Sync: ${latest.updated_at} • ${state.agents.length} Active Agent(s)`;
+
+    const teamSummaryHtml = state.agents.map(a => `
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-sky-300">${a.name}</span>
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${a.role}</span>
+        </div>
+        <p class="text-[11px] text-slate-300 mt-1">${a.job}</p>
+      </div>
+    `).join('');
+
+    document.getElementById('brief-body').innerHTML = `
+      <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
+        <div class="text-[10px] font-mono uppercase text-emerald-300 font-bold">1. Scout Research Report (${latest.scout_research.niche})</div>
+        <div class="text-sm font-bold text-white mt-1">${latest.scout_research.idea}</div>
+        <p class="text-[11px] text-slate-300 mt-1"><strong>Hook:</strong> "${latest.scout_research.hook}"</p>
+        <p class="text-[11px] text-emerald-300 mt-1"><strong>Target Channel:</strong> ${latest.scout_research.channel}</p>
+      </div>
+
+      <div class="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3">
+        <div class="text-[10px] font-mono uppercase text-sky-300 font-bold">2. Chief's Recommended Next Action</div>
+        <p class="text-xs text-white mt-1">${latest.chief_action_item}</p>
+        <p class="text-[11px] text-slate-400 mt-1">Open tasks on board: <strong>${openTasks.length}</strong></p>
+      </div>
+
+      <div>
+        <div class="text-[10px] font-mono uppercase text-slate-400 font-bold mb-1.5">3. Active Team Roster</div>
+        <div class="space-y-1.5">${teamSummaryHtml}</div>
+      </div>
+    `;
+
+    openModal('briefing-modal');
+  }
+
+  function acceptBriefingIntoBoard() {
+    if (!latestBriefingData || !latestBriefingData.logs || !latestBriefingData.logs.length) return;
+    const latest = latestBriefingData.logs[0];
+    const actionLine = `- [ ] ${latest.chief_action_item} *(Briefing ${latest.date})*`;
+
+    if (!state.brain['10-Office/board.md'].includes(latest.chief_action_item)) {
+      state.brain['10-Office/board.md'] += `\n${actionLine}`;
+    }
+    state.brain['06-Research/scout-feed.md'] += `\n\n### ${latest.date} — ${latest.scout_research.idea}\n- **Hook:** ${latest.scout_research.hook}\n- **Channel:** ${latest.scout_research.channel}`;
+    saveState();
+    closeModal('briefing-modal');
+    pushToast(state.chiefName, 'Briefing saved to Brain Vault (06-Research & 10-Office/board.md).', 'emerald');
+  }
+
+  // ==========================================
+  // THREE.JS 3D ISOMETRIC OFFICE + CAMERA
   // ==========================================
   const container = document.getElementById('canvas-container');
   let scene, camera, renderer, brainCrystal, brainRing;
   const deskMeshes = [];
   const agentMeshes = {};
 
-  // Spherical camera state (no external OrbitControls needed)
   let camTheta = Math.PI / 4;
   let camPhi = 0.72;
   let camRadius = 19;
@@ -424,10 +564,7 @@
   ];
 
   function init3D() {
-    if (!window.THREE) {
-      container.innerHTML = '<div class="flex items-center justify-center h-full text-sm text-rose-300">Three.js failed to load. Check internet/ad-blocker and reload.</div>';
-      return;
-    }
+    if (!window.THREE) return;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a);
@@ -439,7 +576,6 @@
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch (err) {
-      container.innerHTML = '<div class="flex items-center justify-center h-full p-6 text-center text-sm text-amber-300">WebGL is disabled in this browser/GPU setting. Enable hardware acceleration or WebGL to view the 3D office.</div>';
       return;
     }
 
@@ -449,8 +585,7 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
-    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.95);
-    scene.add(hemiLight);
+    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.95));
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
     dirLight.position.set(10, 18, 12);
@@ -461,7 +596,6 @@
     brainLight.position.set(0, 2.2, 0);
     scene.add(brainLight);
 
-    // Floor & Rug
     const floor = new THREE.Mesh(
       new THREE.BoxGeometry(16, 0.4, 16),
       new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.75 })
@@ -478,7 +612,6 @@
     rug.receiveShadow = true;
     scene.add(rug);
 
-    // Walls
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
     const wallBackLeft = new THREE.Mesh(new THREE.BoxGeometry(16, 3.2, 0.3), wallMat);
     wallBackLeft.position.set(0, 1.6, -7.85);
@@ -488,7 +621,6 @@
     wallBackRight.position.set(-7.85, 1.6, 0);
     scene.add(wallBackRight);
 
-    // Central Brain Core
     const brainGroup = new THREE.Group();
     const pedestal = new THREE.Mesh(
       new THREE.CylinderGeometry(0.85, 1.05, 0.7, 24),
@@ -520,7 +652,6 @@
     brainGroup.add(brainRing);
     scene.add(brainGroup);
 
-    // Couch
     const couchGroup = new THREE.Group();
     const couchMat = new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.7 });
     const couchBase = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.45, 1.0), couchMat);
@@ -532,7 +663,6 @@
     couchGroup.rotation.y = Math.PI / 4;
     scene.add(couchGroup);
 
-    // Pantry
     const pantryGroup = new THREE.Group();
     const counter = new THREE.Mesh(
       new THREE.BoxGeometry(2.4, 0.95, 0.9),
@@ -785,7 +915,7 @@
         if (entry.walkingToBrain) {
           entry.walkingToBrain = false;
           entry.targetPos = getTargetCoordsForAgent(agent);
-          pushToast(agent.name, 'Synced latest output into the Brain Vault.', 'sky');
+          pushToast(agent.name, 'Synced latest report into the Brain Vault.', 'sky');
         }
       }
     });
@@ -801,7 +931,7 @@
   });
 
   // ==========================================
-  // 3. AGENT INSPECTOR & CUSTOMIZER
+  // AGENT INSPECTOR, MODALS & COMMANDS
   // ==========================================
   function openInspector(agentId) {
     const agent = state.agents.find(a => a.id === agentId);
@@ -885,17 +1015,13 @@
   }
 
   function triggerBrainSync() {
-    const randomAgent = state.agents[Math.floor(Math.random() * state.agents.length)];
+    const randomAgent = state.agents[0];
     const entry = agentMeshes[randomAgent.id];
     if (!entry) return;
     entry.walkingToBrain = true;
     entry.targetPos = new THREE.Vector3(0, 0, 1.5);
-    pushToast(randomAgent.name, 'Walking to the Brain to save current progress...');
   }
 
-  // ==========================================
-  // 4. MODALS: /setup, + Spawn Agent, Brain Vault
-  // ==========================================
   function openModal(id) {
     const m = document.getElementById(id);
     m.classList.remove('hidden');
@@ -1039,9 +1165,6 @@
     pushToast('Brain Vault', 'Exported complete Brain Vault (.md) for GitHub/Obsidian.');
   }
 
-  // ==========================================
-  // 5. PLAIN-WORD & SLASH COMMAND TERMINAL
-  // ==========================================
   function prefillCmd(prefix) {
     const input = document.getElementById('cmd-input');
     input.value = prefix;
@@ -1062,18 +1185,11 @@
 
     const lower = raw.toLowerCase();
 
-    if (lower === '/setup') {
-      openSetupModal();
-      return;
-    }
-    if (lower === '/new-agent') {
-      openSpawnModal();
-      return;
-    }
-    if (lower === '/tidy') {
-      runTidyCommand();
-      return;
-    }
+    if (lower === '/setup') { openSetupModal(); return; }
+    if (lower === '/new-agent') { openSpawnModal(); return; }
+    if (lower === '/tidy') { runTidyCommand(); return; }
+    if (lower === '/briefing') { openBriefingModal(true); return; }
+
     if (lower.startsWith('/teach')) {
       const rule = raw.replace(/^\/teach\s*/i, '').trim();
       if (!rule) {
@@ -1090,9 +1206,7 @@
     if (/\b(publish|send|post|pay|delete|email|launch)\b/i.test(raw)) {
       askGuardApproval(
         `Your Chief (${state.chiefName}) prepared to execute: "${raw}". Per Guard Safety Defaults, approve before anything is sent, published, or modified?`,
-        () => {
-          logTaskToBoard(raw, true);
-        }
+        () => { logTaskToBoard(raw, true); }
       );
       return;
     }
@@ -1130,9 +1244,7 @@
 
   updateHUD();
   init3D();
-  setTimeout(() => {
-    pushToast(state.chiefName, `Welcome to ${state.officeName}! Click /setup to configure or click any desk.`);
-  }, 600);
+  checkAutoLoginBriefing();
 </script>
 </body>
 </html>
