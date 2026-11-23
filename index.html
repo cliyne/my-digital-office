@@ -6,7 +6,6 @@
   <title>My AI Office — 3D Digital Studio Command Center</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
@@ -288,10 +287,8 @@
       </div>
 
       <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <!-- Folder Tree -->
         <div id="brain-tree" class="w-full md:w-64 border-b md:border-b-0 md:border-r border-slate-800 p-2.5 overflow-y-auto custom-scroll space-y-1 text-xs font-mono bg-slate-950/40"></div>
 
-        <!-- Markdown Editor -->
         <div class="flex-1 flex flex-col p-3 overflow-hidden">
           <div class="flex items-center justify-between mb-2">
             <span id="brain-active-path" class="text-xs font-mono text-sky-300 font-semibold">00-Core/about-me.md</span>
@@ -321,16 +318,13 @@
   </div>
 
 <script>
-  // ==========================================
-  // 1. PERSISTENT STATE & NUMBERED BRAIN VAULT
-  // ==========================================
   const STORAGE_KEY = 'my_ai_office_v1';
 
   const DEFAULT_BRAIN = {
     '00-Core/about-me.md': `# About My Digital Office\n- **Office Name:** Zero-Budget Digital Studio\n- **Chief of Staff:** Aria\n- **Operating Constraint:** $0 upfront budget (GitHub + Cloudflare Pages + Gumroad/KDP)\n- **Working Style:** One agent, one job. Plain words. Always verify before publishing.`,
     '01-Business/digital-studio.md': `# Zero-Budget Business Model\n## Primary Revenue Engine\n- **Product Type:** Micro-Calculator & Web Templates (Gumroad / Cloudflare)\n- **Pricing:** $7–$19 digital downloads | $50+ productized setups\n- **Distribution:** Free organic traffic (Pinterest, YouTube Shorts, Freelance Marketplaces)\n\n## Free Infrastructure Stack\n- Hosting: GitHub + Cloudflare Pages ($0/mo)\n- Storefront: Gumroad / Payhip (0% upfront)\n- Database: Supabase Free Tier`,
     '03-AI-Office/RULES.md': `# Office Safety & Quality Rules\n- **Level A (Guard Hook):** Never publish, send emails, or spend money without explicit approval.\n- **Level B (Clean Output):** Keep digital products lightweight, mobile-friendly, and free of paid API dependencies.\n- **Level C (Memory):** Log every finished asset in 05-Projects/ and update 10-Office/board.md.`,
-    '05-Projects/first-product.md': `# Project 01: Freelance Project Quote Calculator\n- **Status:** Ready to Build\n- **Assigned To:** Chief of Staff (Aria)\n- **Deliverable:** Single-file HTML calculator (`calculator.html`) that computes hourly + project rates with PDF print export.\n- **Next Step:** Generate HTML -> Test on mobile -> List on Gumroad for $9.`,
+    '05-Projects/first-product.md': `# Project 01: Freelance Project Quote Calculator\n- **Status:** Ready to Build\n- **Assigned To:** Chief of Staff (Aria)\n- **Deliverable:** Single-file HTML calculator (calculator.html) that computes hourly + project rates with PDF print export.\n- **Next Step:** Generate HTML -> Test on mobile -> List on Gumroad for $9.`,
     '07-Daily-Logs/today.md': `# Daily Studio Log\n- Initialized 3D Digital Office workspace.\n- Set $0-overhead digital product rules in Brain Vault.\n- Ready to spawn specialist agents and ship Project 01.`,
     '10-Office/board.md': `# Live Office Task Board\n- [x] Setup 3D Digital Office & Brain Vault\n- [ ] Build Project 01: Freelance Quote Calculator (HTML)\n- [ ] Write Gumroad sales copy & 5 feature bullets\n- [ ] Publish first product link & share 3 promotional hooks`
   };
@@ -394,139 +388,29 @@
   }
 
   // ==========================================
-  // 2. THREE.JS 3D ISOMETRIC OFFICE ENGINE
+  // 2. THREE.JS 3D ISOMETRIC OFFICE + BUILT-IN CAMERA
   // ==========================================
   const container = document.getElementById('canvas-container');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0f172a);
-  scene.fog = new THREE.FogExp2(0x0f172a, 0.018);
+  let scene, camera, renderer, brainCrystal, brainRing;
+  const deskMeshes = [];
+  const agentMeshes = {};
 
-  const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(14, 13, 14);
+  // Spherical camera state (no external OrbitControls needed)
+  let camTheta = Math.PI / 4;
+  let camPhi = 0.72;
+  let camRadius = 19;
+  const camTarget = new THREE.Vector3(0, 0.8, 0);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  container.appendChild(renderer.domElement);
+  function updateCameraPosition() {
+    if (!camera) return;
+    const clampedPhi = Math.max(0.25, Math.min(Math.PI / 2.15, camPhi));
+    const r = Math.max(8, Math.min(32, camRadius));
+    camera.position.x = camTarget.x + r * Math.sin(clampedPhi) * Math.sin(camTheta);
+    camera.position.y = camTarget.y + r * Math.cos(clampedPhi);
+    camera.position.z = camTarget.z + r * Math.sin(clampedPhi) * Math.cos(camTheta);
+    camera.lookAt(camTarget);
+  }
 
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.06;
-  controls.maxPolarAngle = Math.PI / 2.15;
-  controls.minDistance = 6;
-  controls.maxDistance = 28;
-  controls.target.set(0, 0.8, 0);
-
-  // Lighting
-  const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.85);
-  scene.add(hemiLight);
-
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
-  dirLight.position.set(10, 18, 12);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
-  scene.add(dirLight);
-
-  const brainLight = new THREE.PointLight(0x38bdf8, 1.8, 9);
-  brainLight.position.set(0, 2.2, 0);
-  scene.add(brainLight);
-
-  // Office Floor & Walls
-  const floorGeo = new THREE.BoxGeometry(16, 0.4, 16);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.75 });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.position.y = -0.2;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // Warm Wood Rug Center
-  const rugGeo = new THREE.BoxGeometry(11.5, 0.05, 11.5);
-  const rugMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
-  const rug = new THREE.Mesh(rugGeo, rugMat);
-  rug.position.y = 0.025;
-  rug.receiveShadow = true;
-  scene.add(rug);
-
-  // Back Walls (Cutaway Isometric Style)
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
-  const wallBackLeft = new THREE.Mesh(new THREE.BoxGeometry(16, 3.2, 0.3), wallMat);
-  wallBackLeft.position.set(0, 1.6, -7.85);
-  wallBackLeft.receiveShadow = true;
-  scene.add(wallBackLeft);
-
-  const wallBackRight = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 16), wallMat);
-  wallBackRight.position.set(-7.85, 1.6, 0);
-  wallBackRight.receiveShadow = true;
-  scene.add(wallBackRight);
-
-  // Central Glowing Brain Core
-  const brainGroup = new THREE.Group();
-  const pedestal = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.85, 1.05, 0.7, 24),
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.5, roughness: 0.3 })
-  );
-  pedestal.position.y = 0.35;
-  pedestal.castShadow = true;
-  brainGroup.add(pedestal);
-
-  const brainCrystal = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.68, 1),
-    new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.85,
-      roughness: 0.15,
-      metalness: 0.2
-    })
-  );
-  brainCrystal.position.y = 1.65;
-  brainCrystal.userData = { isBrain: true };
-  brainGroup.add(brainCrystal);
-
-  const brainRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.95, 0.03, 12, 48),
-    new THREE.MeshBasicMaterial({ color: 0x7dd3fc })
-  );
-  brainRing.position.y = 1.65;
-  brainRing.rotation.x = Math.PI / 2.4;
-  brainGroup.add(brainRing);
-  scene.add(brainGroup);
-
-  // Lounge Couch (Front-Left Corner)
-  const couchGroup = new THREE.Group();
-  const couchMat = new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.7 });
-  const couchBase = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.45, 1.0), couchMat);
-  couchBase.position.y = 0.25;
-  couchBase.castShadow = true;
-  const couchBack = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.65, 0.25), couchMat);
-  couchBack.position.set(0, 0.65, -0.38);
-  couchBack.castShadow = true;
-  couchGroup.add(couchBase, couchBack);
-  couchGroup.position.set(-5.2, 0, 5.4);
-  couchGroup.rotation.y = Math.PI / 4;
-  scene.add(couchGroup);
-
-  // Coffee Pantry Counter (Back-Right Corner)
-  const pantryGroup = new THREE.Group();
-  const counter = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 0.95, 0.9),
-    new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 })
-  );
-  counter.position.y = 0.48;
-  counter.castShadow = true;
-  const espresso = new THREE.Mesh(
-    new THREE.BoxGeometry(0.55, 0.5, 0.45),
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.6 })
-  );
-  espresso.position.set(-0.4, 1.2, 0);
-  pantryGroup.add(counter, espresso);
-  pantryGroup.position.set(5.4, 0, -6.2);
-  scene.add(pantryGroup);
-
-  // 9 Desk Coordinates around the Brain
   const DESK_SLOTS = [
     { x: -3.6, z: -3.6, rot: Math.PI / 4 },
     { x: 0.0,  z: -4.6, rot: 0 },
@@ -539,12 +423,138 @@
     { x: 5.6,  z: -2.2, rot: -Math.PI / 2 }
   ];
 
-  const deskMeshes = [];
-  const agentMeshes = {}; // id -> { group, targetPos, stateTimer, walkingToBrain }
+  function init3D() {
+    if (!window.THREE) {
+      container.innerHTML = '<div class="flex items-center justify-center h-full text-sm text-rose-300">Three.js failed to load. Check internet/ad-blocker and reload.</div>';
+      return;
+    }
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+
+    camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    updateCameraPosition();
+
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch (err) {
+      container.innerHTML = '<div class="flex items-center justify-center h-full p-6 text-center text-sm text-amber-300">WebGL is disabled in this browser/GPU setting. Enable hardware acceleration or WebGL to view the 3D office.</div>';
+      return;
+    }
+
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.95);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    dirLight.position.set(10, 18, 12);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    const brainLight = new THREE.PointLight(0x38bdf8, 2.0, 10);
+    brainLight.position.set(0, 2.2, 0);
+    scene.add(brainLight);
+
+    // Floor & Rug
+    const floor = new THREE.Mesh(
+      new THREE.BoxGeometry(16, 0.4, 16),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.75 })
+    );
+    floor.position.y = -0.2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const rug = new THREE.Mesh(
+      new THREE.BoxGeometry(11.5, 0.05, 11.5),
+      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 })
+    );
+    rug.position.y = 0.025;
+    rug.receiveShadow = true;
+    scene.add(rug);
+
+    // Walls
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+    const wallBackLeft = new THREE.Mesh(new THREE.BoxGeometry(16, 3.2, 0.3), wallMat);
+    wallBackLeft.position.set(0, 1.6, -7.85);
+    scene.add(wallBackLeft);
+
+    const wallBackRight = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 16), wallMat);
+    wallBackRight.position.set(-7.85, 1.6, 0);
+    scene.add(wallBackRight);
+
+    // Central Brain Core
+    const brainGroup = new THREE.Group();
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 1.05, 0.7, 24),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.5, roughness: 0.3 })
+    );
+    pedestal.position.y = 0.35;
+    brainGroup.add(pedestal);
+
+    brainCrystal = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.68, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.85,
+        roughness: 0.15,
+        metalness: 0.2
+      })
+    );
+    brainCrystal.position.y = 1.65;
+    brainCrystal.userData = { isBrain: true };
+    brainGroup.add(brainCrystal);
+
+    brainRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.95, 0.03, 12, 48),
+      new THREE.MeshBasicMaterial({ color: 0x7dd3fc })
+    );
+    brainRing.position.y = 1.65;
+    brainRing.rotation.x = Math.PI / 2.4;
+    brainGroup.add(brainRing);
+    scene.add(brainGroup);
+
+    // Couch
+    const couchGroup = new THREE.Group();
+    const couchMat = new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.7 });
+    const couchBase = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.45, 1.0), couchMat);
+    couchBase.position.y = 0.25;
+    const couchBack = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.65, 0.25), couchMat);
+    couchBack.position.set(0, 0.65, -0.38);
+    couchGroup.add(couchBase, couchBack);
+    couchGroup.position.set(-5.2, 0, 5.4);
+    couchGroup.rotation.y = Math.PI / 4;
+    scene.add(couchGroup);
+
+    // Pantry
+    const pantryGroup = new THREE.Group();
+    const counter = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.95, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 })
+    );
+    counter.position.y = 0.48;
+    const espresso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.5, 0.45),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.6 })
+    );
+    espresso.position.set(-0.4, 1.2, 0);
+    pantryGroup.add(counter, espresso);
+    pantryGroup.position.set(5.4, 0, -6.2);
+    scene.add(pantryGroup);
+
+    setupPointerAndWheel();
+    rebuild3DOffice();
+    animate();
+  }
 
   function createDeskMesh(slot) {
     const g = new THREE.Group();
-    // Tabletop
     const top = new THREE.Mesh(
       new THREE.BoxGeometry(1.9, 0.1, 1.0),
       new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
@@ -554,7 +564,6 @@
     top.receiveShadow = true;
     g.add(top);
 
-    // Legs
     const legMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
     [[-0.85, -0.4], [0.85, -0.4], [-0.85, 0.4], [0.85, 0.4]].forEach(([lx, lz]) => {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.8, 0.08), legMat);
@@ -562,7 +571,6 @@
       g.add(leg);
     });
 
-    // Monitor
     const stand = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.12), legMat);
     stand.position.set(0, 0.98, -0.22);
     const screen = new THREE.Mesh(
@@ -572,7 +580,6 @@
     screen.position.set(0, 1.25, -0.22);
     g.add(stand, screen);
 
-    // Chair
     const chairSeat = new THREE.Mesh(
       new THREE.BoxGeometry(0.55, 0.08, 0.55),
       new THREE.MeshStandardMaterial({ color: 0x1e293b })
@@ -590,7 +597,6 @@
     const g = new THREE.Group();
     g.userData = { agentId: agent.id };
 
-    // Torso
     const torso = new THREE.Mesh(
       new THREE.CylinderGeometry(0.24, 0.28, 0.65, 16),
       new THREE.MeshStandardMaterial({ color: agent.shirtColor || '#38bdf8', roughness: 0.5 })
@@ -600,7 +606,6 @@
     torso.userData = { agentId: agent.id };
     g.add(torso);
 
-    // Head
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.24, 20, 20),
       new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.45 })
@@ -610,7 +615,6 @@
     head.userData = { agentId: agent.id };
     g.add(head);
 
-    // Hair
     const hairMat = new THREE.MeshStandardMaterial({ color: agent.hairColor || '#1e293b', roughness: 0.6 });
     if (agent.hairStyle === 'bun') {
       const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.8), hairMat);
@@ -632,7 +636,6 @@
       g.add(capHair);
     }
 
-    // Accessory
     if (agent.accessory === 'glasses') {
       const glasses = new THREE.Mesh(
         new THREE.BoxGeometry(0.36, 0.08, 0.08),
@@ -668,13 +671,12 @@
   }
 
   function rebuild3DOffice() {
-    // Clear existing desks & agents
+    if (!scene) return;
     deskMeshes.forEach(m => scene.remove(m));
     deskMeshes.length = 0;
     Object.values(agentMeshes).forEach(entry => scene.remove(entry.group));
     for (const k in agentMeshes) delete agentMeshes[k];
 
-    // Create 1 desk per active agent
     state.agents.forEach((agent, idx) => {
       agent.deskIndex = idx;
       const slot = DESK_SLOTS[idx % DESK_SLOTS.length];
@@ -695,55 +697,80 @@
     updateHUD();
   }
 
-  // Click Detection (Raycaster)
-  const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-  let pointerDownPos = { x: 0, y: 0 };
+  function setupPointerAndWheel() {
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let isDragging = false;
+    let prevPos = { x: 0, y: 0 };
+    let downPos = { x: 0, y: 0 };
 
-  renderer.domElement.addEventListener('pointerdown', (e) => {
-    pointerDownPos = { x: e.clientX, y: e.clientY };
-  });
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      prevPos = { x: e.clientX, y: e.clientY };
+      downPos = { x: e.clientX, y: e.clientY };
+    });
 
-  renderer.domElement.addEventListener('pointerup', (e) => {
-    const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
-    if (dist > 6) return; // Ignore camera drag
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevPos.x;
+      const dy = e.clientY - prevPos.y;
+      prevPos = { x: e.clientX, y: e.clientY };
+      camTheta -= dx * 0.008;
+      camPhi -= dy * 0.008;
+      updateCameraPosition();
+    });
 
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    window.addEventListener('pointerup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      const moveDist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+      if (moveDist > 6) return;
 
-    raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(scene.children, true);
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-    for (const hit of hits) {
-      let obj = hit.object;
-      while (obj) {
-        if (obj.userData && obj.userData.isBrain) {
-          openBrainModal('00-Core/about-me.md');
-          return;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(scene.children, true);
+
+      for (const hit of hits) {
+        let obj = hit.object;
+        while (obj) {
+          if (obj.userData && obj.userData.isBrain) {
+            openBrainModal('00-Core/about-me.md');
+            return;
+          }
+          if (obj.userData && obj.userData.agentId) {
+            openInspector(obj.userData.agentId);
+            return;
+          }
+          obj = obj.parent;
         }
-        if (obj.userData && obj.userData.agentId) {
-          openInspector(obj.userData.agentId);
-          return;
-        }
-        obj = obj.parent;
       }
-    }
-  });
+    });
 
-  // Animation Loop
+    renderer.domElement.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      camRadius += e.deltaY * 0.012;
+      updateCameraPosition();
+    }, { passive: false });
+  }
+
   const clock = new THREE.Clock();
   function animate() {
+    if (!renderer || !scene || !camera) return;
     requestAnimationFrame(animate);
     const dt = clock.getDelta();
     const elapsed = clock.getElapsedTime();
 
-    // Rotate central Brain
-    brainCrystal.rotation.y = elapsed * 0.65;
-    brainCrystal.position.y = 1.65 + Math.sin(elapsed * 2) * 0.08;
-    brainRing.rotation.z = elapsed * 0.4;
+    if (brainCrystal) {
+      brainCrystal.rotation.y = elapsed * 0.65;
+      brainCrystal.position.y = 1.65 + Math.sin(elapsed * 2) * 0.08;
+    }
+    if (brainRing) {
+      brainRing.rotation.z = elapsed * 0.4;
+    }
 
-    // Move Agents Smoothly
     state.agents.forEach((agent) => {
       const entry = agentMeshes[agent.id];
       if (!entry) return;
@@ -763,11 +790,11 @@
       }
     });
 
-    controls.update();
     renderer.render(scene, camera);
   }
 
   window.addEventListener('resize', () => {
+    if (!camera || !renderer) return;
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -960,7 +987,6 @@
     pushToast(state.chiefName, `Spawned ${name} (${role}) at Desk #${state.agents.length}.`, 'emerald');
   }
 
-  // Brain Vault Modal
   function openBrainModal(filePath) {
     if (filePath && state.brain[filePath] !== undefined) {
       activeBrainFile = filePath;
@@ -1061,7 +1087,6 @@
       return;
     }
 
-    // Check Guard Hook for external actions (publish, send, post, pay, delete)
     if (/\b(publish|send|post|pay|delete|email|launch)\b/i.test(raw)) {
       askGuardApproval(
         `Your Chief (${state.chiefName}) prepared to execute: "${raw}". Per Guard Safety Defaults, approve before anything is sent, published, or modified?`,
@@ -1072,7 +1097,6 @@
       return;
     }
 
-    // Default: Chief plans & logs task to Brain Vault
     logTaskToBoard(raw, false);
   }
 
@@ -1104,9 +1128,8 @@
     pendingGuardCallback = null;
   }
 
-  // Initialize Office
-  rebuild3DOffice();
-  animate();
+  updateHUD();
+  init3D();
   setTimeout(() => {
     pushToast(state.chiefName, `Welcome to ${state.officeName}! Click /setup to configure or click any desk.`);
   }, 600);
